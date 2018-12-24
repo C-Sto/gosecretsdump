@@ -290,7 +290,8 @@ func (g *Gosecretsdump) decryptHash(record esent.Esent_record) dumpedHash {
 			}
 			d.NTHash = g.removeDES(tmpNT, d.Rid)
 		} else {
-			fmt.Println("DO NTLM NTOWFv1!!")
+			//hard coded empty NTLM hash
+			d.NTHash, _ = hex.DecodeString("31D6CFE0D16AE931B73C59D7E0C089C0")
 		}
 
 		//username
