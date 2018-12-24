@@ -15,3 +15,7 @@ You will need to obtain the NTDS.dit and SYSTEM file from the target domain cont
         Location of the SYSTEM file (required)
 
 ```
+
+Example (there is a test .dit and system file in this repo)
+
+`gosecretsdump -ntds test/ntds.dit -system test/system`
