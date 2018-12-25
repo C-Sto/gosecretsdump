@@ -14,6 +14,7 @@ type settings struct {
 
 func main() {
 	s := libdumpsecrets.Settings{}
+	flag.StringVar(&s.Outfile, "out", "", "Location to export output")
 	flag.StringVar(&s.NTDSLoc, "ntds", "", "Location of the NTDS file (required)")
 	flag.StringVar(&s.SystemLoc, "system", "", "Location of the SYSTEM file (required)")
 	flag.BoolVar(&s.Status, "status", false, "Include status in hash output")

@@ -89,6 +89,7 @@ type Settings struct {
 	NTDSLoc     string
 	Status      bool
 	EnabledOnly bool
+	Outfile     string
 }
 
 func (g Gosecretsdump) Init(s Settings) Gosecretsdump {
@@ -417,24 +418,41 @@ func (g *Gosecretsdump) Dump() {
 		if _, ok := accTypes[record.Column[nToInternal["sAMAccountType"]].Long]; ok {
 			//attempt decryption
 			dh := g.decryptHash(record)
-			//print out the decrypted record
-			stat := "Enabled"
-			if dh.UAC.AccountDisable {
-				stat = "Disabled"
-			}
-			prntLine := dh.HashString()
-			if g.settings.Status {
-				prntLine += " (status=" + stat + ")"
-			}
-			if g.settings.EnabledOnly {
-				if !dh.UAC.AccountDisable {
-					fmt.Println(prntLine)
-				}
-			} else {
-				fmt.Println(prntLine)
-			}
+			g.handleHash(dh)
 		}
 	}
+}
+
+func (g Gosecretsdump) handleHash(dh dumpedHash) {
+	//print out the decrypted record
+	prntLine := dh.HashString()
+	if g.settings.Status {
+		stat := "Enabled"
+		if dh.UAC.AccountDisable {
+			stat = "Disabled"
+		}
+		prntLine += " (status=" + stat + ")"
+	}
+	if g.settings.EnabledOnly {
+		if !dh.UAC.AccountDisable {
+			writeFileAndPrintLn(g.settings.Outfile, prntLine)
+		}
+	} else {
+		writeFileAndPrintLn(g.settings.Outfile, prntLine)
+	}
+}
+
+func writeFileAndPrintLn(outfile, val string) {
+	if outfile != "" {
+		file, err := os.OpenFile(outfile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
+		if err != nil {
+			panic(err)
+		}
+		defer file.Close()
+		file.WriteString(val + "\n")
+		file.Sync()
+	}
+	fmt.Println(val)
 }
 
 type dumpedHash struct {
