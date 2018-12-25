@@ -19,6 +19,7 @@ func main() {
 	flag.StringVar(&s.SystemLoc, "system", "", "Location of the SYSTEM file (required)")
 	flag.BoolVar(&s.Status, "status", false, "Include status in hash output")
 	flag.BoolVar(&s.EnabledOnly, "enabled", false, "Only output enabled accounts")
+	flag.BoolVar(&s.NoPrint, "noprint", false, "Don't print output to screen (probably use this with the -out flag)")
 	flag.Parse()
 
 	if s.SystemLoc == "" || s.NTDSLoc == "" {

@@ -90,6 +90,7 @@ type Settings struct {
 	Status      bool
 	EnabledOnly bool
 	Outfile     string
+	NoPrint     bool
 }
 
 func (g Gosecretsdump) Init(s Settings) Gosecretsdump {
@@ -434,14 +435,14 @@ func (g Gosecretsdump) handleHash(dh dumpedHash) {
 	}
 	if g.settings.EnabledOnly {
 		if !dh.UAC.AccountDisable {
-			writeFileAndPrintLn(g.settings.Outfile, prntLine)
+			writeFileAndPrintLn(g.settings.Outfile, prntLine, !g.settings.NoPrint)
 		}
 	} else {
-		writeFileAndPrintLn(g.settings.Outfile, prntLine)
+		writeFileAndPrintLn(g.settings.Outfile, prntLine, !g.settings.NoPrint)
 	}
 }
 
-func writeFileAndPrintLn(outfile, val string) {
+func writeFileAndPrintLn(outfile, val string, print bool) {
 	if outfile != "" {
 		file, err := os.OpenFile(outfile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 		if err != nil {
@@ -451,7 +452,9 @@ func writeFileAndPrintLn(outfile, val string) {
 		file.WriteString(val + "\n")
 		file.Sync()
 	}
-	fmt.Println(val)
+	if print {
+		fmt.Println(val)
+	}
 }
 
 type dumpedHash struct {

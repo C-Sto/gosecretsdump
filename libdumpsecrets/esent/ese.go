@@ -21,8 +21,15 @@ type fileInMem struct {
 }
 
 func (f *fileInMem) Read(start, count int) []byte {
+	if start > len(f.data) {
+		return nil
+	}
 	r := make([]byte, count)
-	copy(r, f.data[start:start+count])
+	if start+count > len(f.data) {
+		copy(r, f.data[start:len(f.data)])
+	} else {
+		copy(r, f.data[start:start+count])
+	}
 	f.lastread = start + count
 	return r
 }
