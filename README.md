@@ -9,11 +9,14 @@ This is a conversion of the impacket secretsdump module into golang. It's not ve
 ## Usage
 You will need to obtain the NTDS.dit and SYSTEM file from the target domain controller as normal. This won't dump anything remotely, just local (for now at least).
 ```  
+  -enabled
+        Only output enabled accounts
   -ntds string
         Location of the NTDS file (required)
+  -status
+        Include status in hash output
   -system string
         Location of the SYSTEM file (required)
-
 ```
 
 Example (there is a test .dit and system file in this repo)
