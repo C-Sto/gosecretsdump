@@ -96,7 +96,6 @@ type crypted_hash struct {
 }
 
 func decryptAES(key, value, iv []byte) []byte {
-	plain := []byte{}
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)
@@ -104,5 +103,5 @@ func decryptAES(key, value, iv []byte) []byte {
 	thing := cipher.NewCBCDecrypter(block, iv)
 	dst := make([]byte, len(value))
 	thing.CryptBlocks(dst, value)
-	return plain
+	return dst
 }

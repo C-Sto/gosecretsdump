@@ -168,11 +168,9 @@ func (g *Gosecretsdump) GetPek() bool {
 				# CipherText: PEKLIST_ENC['EncryptedPek']
 				# IV: PEKLIST_ENC['KeyMaterial']
 			*/
-			decryptedPekList := peklist_plain{}.Init(
-				decryptAES(g.bootKey, encryptedPekList.EncryptedPek, encryptedPekList.KeyMaterial[:]),
-			)
-			g.pek = append(g.pek, decryptedPekList.DecryptedPek[4:16])
-			fmt.Println(decryptedPekList)
+			ePek := decryptAES(g.bootKey, encryptedPekList.EncryptedPek, encryptedPekList.KeyMaterial[:])
+			decryptedPekList := peklist_plain{}.Init(ePek)
+			g.pek = append(g.pek, decryptedPekList.DecryptedPek[4:20])
 		}
 	}
 	return false
@@ -229,7 +227,7 @@ func (l localOps) checkNoLMHashPolicy() bool {
 	}
 	currentControlSet := fmt.Sprintf("ControlSet%03d", binary.LittleEndian.Uint32(bcurrentControlSet))
 	_, _, err = winreg.GetVal(fmt.Sprintf("\\%s\\Control\\Lsa\\NoLmHash", currentControlSet))
-	if err.Error() == winregistry.NONE {
+	if err != nil && err.Error() == winregistry.NONE {
 		//yee got some LM HASHES life is gonna be GOOD
 		return false
 	}
@@ -321,7 +319,7 @@ func (g *Gosecretsdump) decryptHash(record esent.Esent_record) dumpedHash {
 			tmpNT := []byte{}
 			encryptedNT := crypted_hash{}.Init(v)
 			if bytes.Compare(encryptedNT.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
-				encryptedNTW := crypted_hashw16{}.Init(record.Column[nToInternal["dBCSPwd"]].BytVal)
+				encryptedNTW := crypted_hashw16{}.Init(record.Column[nToInternal["unicodePwd"]].BytVal)
 				pekIndex := encryptedNTW.Header
 				tmpNT = decryptAES(g.pek[pekIndex[4]], encryptedNTW.EncrypedHash[:16], encryptedNTW.KeyMaterial[:])
 			} else {
@@ -335,8 +333,9 @@ func (g *Gosecretsdump) decryptHash(record esent.Esent_record) dumpedHash {
 
 		//username
 		if v := record.Column[nToInternal["userPrincipalName"]].StrVal; v != "" {
-			recs := record.Column[nToInternal["userPrincipalName"]].StrVal
-			domain := strings.Split(recs, "@")[len(recs)]
+			rec := record.Column[nToInternal["userPrincipalName"]].StrVal
+			recs := strings.Split(rec, "@")
+			domain := recs[len(recs)-1]
 			d.Username = fmt.Sprintf("%s\\%s", domain, record.Column[nToInternal["sAMAccountName"]].StrVal)
 		} else {
 			d.Username = fmt.Sprintf("%s", record.Column[nToInternal["sAMAccountName"]].StrVal)

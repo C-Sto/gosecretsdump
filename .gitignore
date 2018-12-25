@@ -1,3 +1,5 @@
 /.vscode
 /impacket*
 test.txt
+/test/Big/*
+venv*
