@@ -50,6 +50,8 @@ type Gosecretsdump struct {
 	cursor   *esent.Cursor
 	pek      [][]byte
 	tmpUsers []esent.Esent_record
+
+	settings Settings
 }
 
 //global maps are probably not the best way of doing this, but it will do for now
@@ -82,7 +84,14 @@ var nToInternal = map[string]string{
 	"pwdLastSet":              "ATTq589920",
 }
 
-func (g Gosecretsdump) Init(ntdsLoc, systemLoc string) Gosecretsdump {
+type Settings struct {
+	SystemLoc   string
+	NTDSLoc     string
+	Status      bool
+	EnabledOnly bool
+}
+
+func (g Gosecretsdump) Init(s Settings) Gosecretsdump {
 	r := Gosecretsdump{
 		isRemote:           false,
 		history:            false,
@@ -95,11 +104,11 @@ func (g Gosecretsdump) Init(ntdsLoc, systemLoc string) Gosecretsdump {
 		outputFileName:     "",
 		justUser:           "",
 		printUserStatus:    false,
-		systemHiveLocation: systemLoc,
-		ntdsFileLocation:   ntdsLoc,
-		db:                 esent.Esedb{}.Init(ntdsLoc),
+		systemHiveLocation: s.SystemLoc,
+		ntdsFileLocation:   s.NTDSLoc,
+		db:                 esent.Esedb{}.Init(s.NTDSLoc),
 	}
-
+	r.settings = s
 	r.cursor = r.db.OpenTable("datatable")
 
 	return r
@@ -149,8 +158,6 @@ func (g *Gosecretsdump) GetPek() bool {
 				g.pek = append(g.pek, pek.Key[:])
 			}
 		} else if bytes.Compare(encryptedPekList.Header[:4], []byte("\x03\x00\x00\x00")) == 0 {
-			fmt.Println("DO THE LATER GOODER VERSION OF WINDOW SSERVER OK")
-			panic("NOT YET IMPLEMENTED")
 			//something something 2016 TP4
 			/*
 				# Windows 2016 TP4 header starts this way
@@ -160,6 +167,11 @@ func (g *Gosecretsdump) GetPek() bool {
 				# CipherText: PEKLIST_ENC['EncryptedPek']
 				# IV: PEKLIST_ENC['KeyMaterial']
 			*/
+			decryptedPekList := peklist_plain{}.Init(
+				decryptAES(g.bootKey, encryptedPekList.EncryptedPek, encryptedPekList.KeyMaterial[:]),
+			)
+			g.pek = append(g.pek, decryptedPekList.DecryptedPek[4:16])
+			fmt.Println(decryptedPekList)
 		}
 	}
 	return false
@@ -255,6 +267,30 @@ func (s SAMR_RPC_SID) Init(data []byte) SAMR_RPC_SID {
 	return r
 }
 
+type crypted_hashw16 struct {
+	Header       [8]byte
+	KeyMaterial  [16]byte
+	Unknown      uint32
+	EncrypedHash [32]byte
+}
+
+func (c crypted_hashw16) Init(inData []byte) crypted_hashw16 {
+	r := crypted_hashw16{}
+	data := make([]byte, len(inData))
+	copy(data, inData)
+	copy(r.Header[:], data[:8])
+	data = data[8:]
+	copy(r.KeyMaterial[:], data[:16])
+	data = data[16:]
+
+	r.Unknown = binary.LittleEndian.Uint32(data[:4])
+	data = data[4:]
+
+	copy(r.EncrypedHash[:], data[:32])
+
+	return r
+}
+
 func (g *Gosecretsdump) decryptHash(record esent.Esent_record) dumpedHash {
 	d := dumpedHash{}
 	if g.useVSSMethod {
@@ -267,8 +303,9 @@ func (g *Gosecretsdump) decryptHash(record esent.Esent_record) dumpedHash {
 			tmpLM := []byte{}
 			encryptedLM := crypted_hash{}.Init(record.Column[nToInternal["dBCSPwd"]].BytVal)
 			if bytes.Compare(encryptedLM.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
-				fmt.Println("DO WIN2016 TP4 DECRYPT THINGS")
-				panic("NOT IMPLEMENTED")
+				encryptedLMW := crypted_hashw16{}.Init(record.Column[nToInternal["dBCSPwd"]].BytVal)
+				pekIndex := encryptedLMW.Header
+				tmpLM = decryptAES(g.pek[pekIndex[4]], encryptedLMW.EncrypedHash[:16], encryptedLMW.KeyMaterial[:])
 			} else {
 				tmpLM = g.removeRC4(encryptedLM)
 			}
@@ -283,8 +320,9 @@ func (g *Gosecretsdump) decryptHash(record esent.Esent_record) dumpedHash {
 			tmpNT := []byte{}
 			encryptedNT := crypted_hash{}.Init(v)
 			if bytes.Compare(encryptedNT.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
-				fmt.Println("DO WIN2016 TP4 DECRYPT THINGS")
-				panic("NOT IMPLEMENTED")
+				encryptedNTW := crypted_hashw16{}.Init(record.Column[nToInternal["dBCSPwd"]].BytVal)
+				pekIndex := encryptedNTW.Header
+				tmpNT = decryptAES(g.pek[pekIndex[4]], encryptedNTW.EncrypedHash[:16], encryptedNTW.KeyMaterial[:])
 			} else {
 				tmpNT = g.removeRC4(encryptedNT)
 			}
@@ -296,23 +334,59 @@ func (g *Gosecretsdump) decryptHash(record esent.Esent_record) dumpedHash {
 
 		//username
 		if v := record.Column[nToInternal["userPrincipalName"]].StrVal; v != "" {
-			fmt.Println("UPN AHS VALUE OK DO THIS")
-			fmt.Println(v)
+			recs := record.Column[nToInternal["userPrincipalName"]].StrVal
+			domain := strings.Split(recs, "@")[len(recs)]
+			d.Username = fmt.Sprintf("%s\\%s", domain, record.Column[nToInternal["sAMAccountName"]].StrVal)
 		} else {
 			d.Username = fmt.Sprintf("%s", record.Column[nToInternal["sAMAccountName"]].StrVal)
 		}
 
-		if g.printUserStatus {
-			//enabled/disabled
-			fmt.Println("DO USER STATUS OK")
+		if v := record.Column[nToInternal["userAccountControl"]].Long; v != 0 {
+			d.UAC = decodeUAC(int(v))
 		}
-
-		//do last password set
-
 	} else {
 		fmt.Println("DO NOT VSS METHOD?")
 	}
 	return d
+}
+
+type uacFlags struct {
+	Script, AccountDisable, HomeDirRequired,
+	Lockout, PasswdNotReqd, EncryptedTextPwdAllowed,
+	TempDupAccount, NormalAccount, InterDomainTrustAcct,
+	WorkstationTrustAccount, ServerTrustAccount,
+	DontExpirePassword, MNSLogonAccount, SmartcardRequired,
+	TrustedForDelegation, NotDelegated, UseDESOnly,
+	DontPreauth, PasswordExpired, TrustedToAuthForDelegation,
+	PartialSecrets bool
+}
+
+//whoa this is a dumb way of doing it,
+//but I've had too many rums to think of the actual way
+func decodeUAC(val int) uacFlags {
+	r := uacFlags{}
+	r.Script = val|1 == val
+	r.AccountDisable = val|2 == val
+	r.HomeDirRequired = val|8 == val
+	r.Lockout = val|6 == val
+	r.PasswdNotReqd = val|32 == val
+	r.EncryptedTextPwdAllowed = val|128 == val
+	r.TempDupAccount = val|256 == val
+	r.NormalAccount = val|512 == val
+	r.InterDomainTrustAcct = val|2048 == val
+	r.WorkstationTrustAccount = val|4096 == val
+	r.ServerTrustAccount = val|8192 == val
+	r.DontExpirePassword = val|65536 == val
+	r.MNSLogonAccount = val|131072 == val
+	r.SmartcardRequired = val|262144 == val
+	r.TrustedForDelegation = val|524288 == val
+	r.NotDelegated = val|1048576 == val
+	r.UseDESOnly = val|2097152 == val
+	r.DontPreauth = val|4194304 == val
+	r.PasswordExpired = val|8388608 == val
+	r.TrustedToAuthForDelegation = val|16777216 == val
+	r.PartialSecrets = val|67108864 == val
+	return r
 }
 
 func (g *Gosecretsdump) Dump() {
@@ -344,7 +418,21 @@ func (g *Gosecretsdump) Dump() {
 			//attempt decryption
 			dh := g.decryptHash(record)
 			//print out the decrypted record
-			fmt.Println(dh.HashString())
+			stat := "Enabled"
+			if dh.UAC.AccountDisable {
+				stat = "Disabled"
+			}
+			prntLine := dh.HashString()
+			if g.settings.Status {
+				prntLine += " (status=" + stat + ")"
+			}
+			if g.settings.EnabledOnly {
+				if !dh.UAC.AccountDisable {
+					fmt.Println(prntLine)
+				}
+			} else {
+				fmt.Println(prntLine)
+			}
 		}
 	}
 }
@@ -354,6 +442,8 @@ type dumpedHash struct {
 	LMHash   []byte
 	NTHash   []byte
 	Rid      string
+	Enabled  bool
+	UAC      uacFlags
 }
 
 func (d dumpedHash) HashString() string {
@@ -361,6 +451,7 @@ func (d dumpedHash) HashString() string {
 		d.Username, d.Rid,
 		hex.EncodeToString(d.LMHash),
 		hex.EncodeToString(d.NTHash))
+
 	return answer
 }
 

@@ -13,17 +13,19 @@ type settings struct {
 }
 
 func main() {
-	s := settings{}
-	flag.StringVar(&s.NtdsLocation, "ntds", "", "Location of the NTDS file (required)")
-	flag.StringVar(&s.SystemLocation, "system", "", "Location of the SYSTEM file (required)")
+	s := libdumpsecrets.Settings{}
+	flag.StringVar(&s.NTDSLoc, "ntds", "", "Location of the NTDS file (required)")
+	flag.StringVar(&s.SystemLoc, "system", "", "Location of the SYSTEM file (required)")
+	flag.BoolVar(&s.Status, "status", false, "Include status in hash output")
+	flag.BoolVar(&s.EnabledOnly, "enabled", false, "Only output enabled accounts")
 	flag.Parse()
 
-	if s.SystemLocation == "" || s.NtdsLocation == "" {
+	if s.SystemLoc == "" || s.NTDSLoc == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	gsd := libdumpsecrets.Gosecretsdump{}.Init(s.NtdsLocation, s.SystemLocation)
+	gsd := libdumpsecrets.Gosecretsdump{}.Init(s)
 
 	gsd.Dump()
 }

@@ -1,6 +1,8 @@
 package libdumpsecrets
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/des"
 	"crypto/md5"
 	"crypto/rc4"
@@ -91,4 +93,16 @@ type crypted_hash struct {
 	Header        [8]byte
 	KeyMaterial   [16]byte
 	EncryptedHash [16]byte
+}
+
+func decryptAES(key, value, iv []byte) []byte {
+	plain := []byte{}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err)
+	}
+	thing := cipher.NewCBCDecrypter(block, iv)
+	dst := make([]byte, len(value))
+	thing.CryptBlocks(dst, value)
+	return plain
 }
