@@ -9,6 +9,8 @@ import (
 	"io/ioutil"
 	"os"
 
+	"golang.org/x/text/encoding/charmap"
+
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -390,6 +392,12 @@ func (e *Esedb) tagToRecord(c *Cursor, tag []byte) Esent_record {
 					record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(b)}
 				} else if cRecord.Columns.CodePage == 1252 {
 					fmt.Println("DO WESTERN!!", string(record.Column[column].BytVal))
+					d := charmap.Windows1252.NewDecoder()
+					b, err := d.Bytes(record.Column[column].BytVal)
+					if err != nil {
+						panic(err)
+					}
+					record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(b)}
 					//western... idk yet
 				} else {
 					fmt.Println("UNKNOWN STRING?")
