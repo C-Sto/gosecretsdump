@@ -251,8 +251,11 @@ func (s SAMR_RPC_SID) FormatCanonical() string {
 	return ans
 }
 
-func (s SAMR_RPC_SID) Init(data []byte) SAMR_RPC_SID {
+func (s SAMR_RPC_SID) Init(data []byte) (SAMR_RPC_SID, error) {
 	r := SAMR_RPC_SID{}
+	if len(data) < 6 {
+		return r, fmt.Errorf("Bad SAMR data: %s", string(data))
+	}
 	lData := make([]byte, len(data)) //avoid mutate
 	copy(lData, data)
 
@@ -264,7 +267,7 @@ func (s SAMR_RPC_SID) Init(data []byte) SAMR_RPC_SID {
 	r.SubLen = int(r.SubAuthorityCount) * 4
 	r.SubAuthority = make([]byte, len(lData))
 	copy(r.SubAuthority, lData)
-	return r
+	return r, nil
 }
 
 type crypted_hashw16 struct {
@@ -291,11 +294,14 @@ func (c crypted_hashw16) Init(inData []byte) crypted_hashw16 {
 	return r
 }
 
-func (g *Gosecretsdump) decryptHash(record esent.Esent_record) dumpedHash {
+func (g *Gosecretsdump) decryptHash(record esent.Esent_record) (dumpedHash, error) {
 	d := dumpedHash{}
 	if g.useVSSMethod {
 		z := nToInternal["objectSid"]
-		sid := SAMR_RPC_SID{}.Init(record.Column[z].BytVal)
+		sid, err := SAMR_RPC_SID{}.Init(record.Column[z].BytVal)
+		if err != nil {
+			return d, err
+		}
 		d.Rid = sid.FormatCanonical()[strings.LastIndex(sid.FormatCanonical(), "-")+1:]
 
 		//lm hash
@@ -348,7 +354,7 @@ func (g *Gosecretsdump) decryptHash(record esent.Esent_record) dumpedHash {
 	} else {
 		fmt.Println("DO NOT VSS METHOD?")
 	}
-	return d
+	return d, nil
 }
 
 type uacFlags struct {
@@ -417,7 +423,11 @@ func (g *Gosecretsdump) Dump() {
 		}
 		if _, ok := accTypes[record.Column[nToInternal["sAMAccountType"]].Long]; ok {
 			//attempt decryption
-			dh := g.decryptHash(record)
+			dh, err := g.decryptHash(record)
+			if err != nil {
+				fmt.Println("Coudln't decrypt record:", err.Error())
+				continue
+			}
 			g.handleHash(dh)
 		}
 	}
