@@ -85,14 +85,15 @@ func (c crypted_hash) Init(inData []byte) crypted_hash {
 	data = data[8:]
 	copy(r.KeyMaterial[:], data[:16])
 	data = data[16:]
-	copy(r.EncryptedHash[:], data[:16])
+	r.EncryptedHash = make([]byte, len(data))
+	copy(r.EncryptedHash[:], data[:])
 	return r
 }
 
 type crypted_hash struct {
 	Header        [8]byte
 	KeyMaterial   [16]byte
-	EncryptedHash [16]byte
+	EncryptedHash []byte
 }
 
 func decryptAES(key, value, iv []byte) []byte {

@@ -235,6 +235,86 @@ func (l localOps) checkNoLMHashPolicy() bool {
 	return true
 }
 
+type SAMR_USER_PROPERTIES struct { /*
+			# 2.2.10.1 USER_PROPERTIES
+		class USER_PROPERTIES(Structure):
+		    structure = (
+		        ('Reserved1','<L=0'), L = 4 bytes (uint32)
+		        ('Length','<L=0'),
+		        ('Reserved2','<H=0'), H = 2 bytes (uint16)
+		        ('Reserved3','<H=0'),
+		        ('Reserved4','96s=""'), S = 1byte (String)
+		        ('PropertySignature','<H=0x50'),
+		        ('PropertyCount','<H=0'),
+		        ('UserProperties',':'),
+		)*/
+	Reserved1         uint32
+	Length            uint32
+	Reserved2         uint16
+	Reserved3         uint16
+	Reserved4         [96]byte
+	PropertySignature uint16
+	PropertyCount     uint16
+	Properties        []SAMR_USER_PROPERTY
+}
+
+func (s SAMR_USER_PROPERTIES) New(data []byte) SAMR_USER_PROPERTIES {
+	r := SAMR_USER_PROPERTIES{}
+	lData := make([]byte, len(data)) //avoid mutate
+	copy(lData, data)
+
+	r.Reserved1 = binary.LittleEndian.Uint32(lData[:4])
+	lData = lData[4:]
+	r.Length = binary.LittleEndian.Uint32(lData[:4])
+	lData = lData[4:]
+	r.Reserved2 = binary.LittleEndian.Uint16(lData[:2])
+	lData = lData[2:]
+	r.Reserved3 = binary.LittleEndian.Uint16(lData[:2])
+	lData = lData[2:]
+	copy(r.Reserved4[:], lData[:96])
+	lData = lData[96:]
+	r.PropertySignature = binary.LittleEndian.Uint16(lData[:2])
+	lData = lData[2:]
+	r.PropertyCount = binary.LittleEndian.Uint16(lData[:2])
+	lData = lData[2:]
+	//fill properties
+	for i := uint16(0); i < r.PropertyCount; i++ {
+		np := SAMR_USER_PROPERTY{}
+		np.NameLength = binary.LittleEndian.Uint16(lData[:2])
+		lData = lData[2:]
+		np.ValueLength = binary.LittleEndian.Uint16(lData[:2])
+		lData = lData[2:]
+		np.Reserved = binary.LittleEndian.Uint16(lData[:2])
+		lData = lData[2:]
+		np.PropertyName = lData[:np.NameLength]
+		lData = lData[np.NameLength:]
+		np.PropertyValue = lData[:np.ValueLength]
+		lData = lData[np.ValueLength:]
+		r.Properties = append(r.Properties, np)
+	}
+	return r
+}
+
+type SAMR_USER_PROPERTY struct {
+	/*
+			class USER_PROPERTY(Structure):
+		    structure = (
+		        ('NameLength','<H=0'),
+		        ('ValueLength','<H=0'),
+		        ('Reserved','<H=0'),
+		        ('_PropertyName','_-PropertyName', "self['NameLength']"),
+		        ('PropertyName',':'),
+		        ('_PropertyValue','_-PropertyValue', "self['ValueLength']"),
+		        ('PropertyValue',':'),
+		)
+	*/
+	NameLength    uint16
+	ValueLength   uint16
+	Reserved      uint16
+	PropertyName  []byte
+	PropertyValue []byte
+}
+
 type SAMR_RPC_SID struct {
 	Revision            uint8   //'<B'
 	SubAuthorityCount   uint8   //'<B'
@@ -295,22 +375,67 @@ func (c crypted_hashw16) Init(inData []byte) crypted_hashw16 {
 }
 
 type suppInfo struct {
+	Username      string
+	ClearPassword string
+	MachinePass   bool
+}
+
+func (s suppInfo) HashString() string {
+	return fmt.Sprintf("%s:CLEARTEXT:%s", s.Username, s.ClearPassword)
 }
 
 func (g *Gosecretsdump) decryptSupp(record esent.Esent_record) (suppInfo, error) {
 	r := suppInfo{}
-	/*
-		if g.useVSSMethod {
-			val := record.Column[nToInternal["supplementalCredentials"]]
-			if len(val.BytVal) > 0 {
-				fmt.Println("SUPP!", val.BytVal, len(val.BytVal))
+	///*
+	if g.useVSSMethod {
+		val := record.Column[nToInternal["supplementalCredentials"]]
+		if len(val.BytVal) > 24 { //is the value above the minimum for plaintex passwords?
+			username := ""
+			//check if the record is something something? has a UPN?
+			if record.Column[nToInternal["userPrincipalName"]].StrVal != "" {
+			} else {
+				username = record.Column[nToInternal["sAMAccountName"]].StrVal
 			}
-		} else {
-			fmt.Println("NOT VSS METHOD???")
-		}
+			//fmt.Println(val.BytVal)
+			ct := crypted_hash{}.Init(val.BytVal)
 
-		//panic("lol")
-	*/
+			//check for windows 2016 tp4
+			if bytes.Compare(ct.Header[:4], []byte{0x13, 0, 0, 0}) == 0 {
+				fmt.Println("TODO: WINDOWS 2016 SUPP DATA FOR PLAINTEXT")
+			} else {
+				plainBytes := g.removeRC4(ct)
+				props := SAMR_USER_PROPERTIES{}.New(plainBytes)
+				for _, x := range props.Properties {
+					//apparently we should care about kerberos-newer-keys, but I don't really want to at the moment
+					s, e := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder().String(string(x.PropertyName))
+					if e != nil {
+						continue
+					}
+					if strings.Compare(s, "Primary:CLEARTEXT") == 0 { //awwww yis
+						//try decode the thing first
+						nhex, err := hex.DecodeString(string(x.PropertyValue))
+						if err != nil {
+							continue
+						}
+						sdec, err := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder().String(string(nhex))
+						if err != nil {
+							//check for machien key thingo here I guess
+							continue
+						}
+						r.Username = username
+						r.ClearPassword = sdec
+					}
+
+				}
+			}
+
+		}
+	} else {
+		fmt.Println("NOT VSS METHOD???")
+	}
+
+	//panic("lol")
+	//*/
 	return r, nil
 }
 
@@ -444,13 +569,40 @@ func (g *Gosecretsdump) Dump() {
 		if _, ok := accTypes[record.Column[nToInternal["sAMAccountType"]].Long]; ok {
 			//attempt decryption
 			dh, err := g.decryptHash(record)
-			g.decryptSupp(record)
 			if err != nil {
 				fmt.Println("Coudln't decrypt record:", err.Error())
 				continue
 			}
 			g.handleHash(dh)
+			ds, err := g.decryptSupp(record)
+			if err != nil {
+				fmt.Println("Coudln't decrypt record:", err.Error())
+				continue
+			}
+			g.handleSupp(dh, ds)
 		}
+	}
+}
+
+func (g Gosecretsdump) handleSupp(dh dumpedHash, ds suppInfo) {
+	if ds.Username == "" {
+		return
+	}
+	//print out the decrypted record
+	prntLine := ds.HashString()
+	if g.settings.Status {
+		stat := "Enabled"
+		if dh.UAC.AccountDisable {
+			stat = "Disabled"
+		}
+		prntLine += " (status=" + stat + ")"
+	}
+	if g.settings.EnabledOnly {
+		if !dh.UAC.AccountDisable {
+			writeFileAndPrintLn(g.settings.Outfile, prntLine, !g.settings.NoPrint, true)
+		}
+	} else {
+		writeFileAndPrintLn(g.settings.Outfile, prntLine, !g.settings.NoPrint, true)
 	}
 }
 
@@ -466,15 +618,18 @@ func (g Gosecretsdump) handleHash(dh dumpedHash) {
 	}
 	if g.settings.EnabledOnly {
 		if !dh.UAC.AccountDisable {
-			writeFileAndPrintLn(g.settings.Outfile, prntLine, !g.settings.NoPrint)
+			writeFileAndPrintLn(g.settings.Outfile, prntLine, !g.settings.NoPrint, false)
 		}
 	} else {
-		writeFileAndPrintLn(g.settings.Outfile, prntLine, !g.settings.NoPrint)
+		writeFileAndPrintLn(g.settings.Outfile, prntLine, !g.settings.NoPrint, false)
 	}
 }
 
-func writeFileAndPrintLn(outfile, val string, print bool) {
+func writeFileAndPrintLn(outfile, val string, print bool, cleartext bool) {
 	if outfile != "" {
+		if cleartext {
+			outfile = outfile + ".cleartext"
+		}
 		file, err := os.OpenFile(outfile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 		if err != nil {
 			panic(err)
