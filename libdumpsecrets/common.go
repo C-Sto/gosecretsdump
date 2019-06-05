@@ -294,6 +294,26 @@ func (c crypted_hashw16) Init(inData []byte) crypted_hashw16 {
 	return r
 }
 
+type suppInfo struct {
+}
+
+func (g *Gosecretsdump) decryptSupp(record esent.Esent_record) (suppInfo, error) {
+	r := suppInfo{}
+	/*
+		if g.useVSSMethod {
+			val := record.Column[nToInternal["supplementalCredentials"]]
+			if len(val.BytVal) > 0 {
+				fmt.Println("SUPP!", val.BytVal, len(val.BytVal))
+			}
+		} else {
+			fmt.Println("NOT VSS METHOD???")
+		}
+
+		//panic("lol")
+	*/
+	return r, nil
+}
+
 func (g *Gosecretsdump) decryptHash(record esent.Esent_record) (dumpedHash, error) {
 	d := dumpedHash{}
 	if g.useVSSMethod {
@@ -424,6 +444,7 @@ func (g *Gosecretsdump) Dump() {
 		if _, ok := accTypes[record.Column[nToInternal["sAMAccountType"]].Long]; ok {
 			//attempt decryption
 			dh, err := g.decryptHash(record)
+			g.decryptSupp(record)
 			if err != nil {
 				fmt.Println("Coudln't decrypt record:", err.Error())
 				continue
