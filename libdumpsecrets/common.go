@@ -379,11 +379,15 @@ func (c crypted_hashw16) Init(inData []byte) crypted_hashw16 {
 type suppInfo struct {
 	Username      string
 	ClearPassword string
-	MachinePass   bool
+	NotASCII      bool
 }
 
 func (s suppInfo) HashString() string {
-	return fmt.Sprintf("%s:CLEARTEXT:%s", s.Username, s.ClearPassword)
+	frmt := "%s:CLEARTEXT:%s"
+	if s.NotASCII {
+		frmt = "%s:CLEARTEXT_HEX:%s"
+	}
+	return fmt.Sprintf(frmt, s.Username, s.ClearPassword)
 }
 
 func (g *Gosecretsdump) decryptSupp(record esent.Esent_record) (suppInfo, error) {
@@ -393,8 +397,14 @@ func (g *Gosecretsdump) decryptSupp(record esent.Esent_record) (suppInfo, error)
 		val := record.Column[nToInternal["supplementalCredentials"]]
 		if len(val.BytVal) > 24 { //is the value above the minimum for plaintex passwords?
 			username := ""
+			var plainBytes []byte
 			//check if the record is something something? has a UPN?
+			fmt.Println(record)
 			if record.Column[nToInternal["userPrincipalName"]].StrVal != "" {
+				domain := record.Column[nToInternal["userPrincipalName"]].StrVal
+				parts := strings.Split(domain, "@")
+				domain = parts[len(parts)]
+				username = fmt.Sprintf("%s\\%s", domain, record.Column[nToInternal["sAMAccountName"]].StrVal)
 			} else {
 				username = record.Column[nToInternal["sAMAccountName"]].StrVal
 			}
@@ -403,44 +413,47 @@ func (g *Gosecretsdump) decryptSupp(record esent.Esent_record) (suppInfo, error)
 
 			//check for windows 2016 tp4
 			if bytes.Compare(ct.Header[:4], []byte{0x13, 0, 0, 0}) == 0 {
-				fmt.Println("TODO: WINDOWS 2016 SUPP DATA FOR PLAINTEXT")
+				//fmt.Println("TODO: WINDOWS 2016 SUPP DATA FOR PLAINTEXT")
+				pekIndex := binary.LittleEndian.Uint16(ct.Header[4:5])
+				plainBytes = decryptAES(g.pek[pekIndex],
+					ct.EncryptedHash[4:],
+					ct.KeyMaterial[:])
 			} else {
-				plainBytes := g.removeRC4(ct)
-				props := SAMR_USER_PROPERTIES{}.New(plainBytes)
-				for _, x := range props.Properties {
-					//apparently we should care about kerberos-newer-keys, but I don't really want to at the moment
-					s, e := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder().String(string(x.PropertyName))
-					if e != nil {
-						continue
-					}
-					if strings.Compare(s, "Primary:CLEARTEXT") == 0 { //awwww yis
-						//try decode the thing first
-						nhex, err := hex.DecodeString(string(x.PropertyValue))
-						if err != nil {
-							continue
-						}
-						sdec, err := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder().String(string(nhex))
-						if err != nil {
-							//check for machien key thingo here I guess
-							continue
-						}
-						if !isASCII(sdec) {
-							sdec = string(x.PropertyValue)
-						}
-						r.Username = username
-						r.ClearPassword = sdec
-					}
-
-				}
+				plainBytes = g.removeRC4(ct)
 			}
 
+			props := SAMR_USER_PROPERTIES{}.New(plainBytes)
+			for _, x := range props.Properties {
+				//apparently we should care about kerberos-newer-keys, but I don't really want to at the moment
+				s, e := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder().String(string(x.PropertyName))
+				if e != nil {
+					continue
+				}
+				if strings.Compare(s, "Primary:CLEARTEXT") == 0 { //awwww yis
+					//try decode the thing first
+					nhex, err := hex.DecodeString(string(x.PropertyValue))
+					if err != nil {
+						continue
+					}
+					sdec, err := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder().String(string(nhex))
+					if err != nil {
+						//check for machien key thingo here I guess
+						continue
+					}
+					if !isASCII(sdec) {
+						sdec = string(x.PropertyValue)
+						r.NotASCII = true
+					}
+					r.Username = username
+					r.ClearPassword = sdec
+				}
+
+			}
 		}
+
 	} else {
 		fmt.Println("NOT VSS METHOD???")
 	}
-
-	//panic("lol")
-	//*/
 	return r, nil
 }
 
