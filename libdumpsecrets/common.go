@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 
+	u "unicode"
+
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/c-sto/gosecretsdump/libdumpsecrets/esent"
@@ -422,6 +424,9 @@ func (g *Gosecretsdump) decryptSupp(record esent.Esent_record) (suppInfo, error)
 							//check for machien key thingo here I guess
 							continue
 						}
+						if !isASCII(sdec) {
+							sdec = string(x.PropertyValue)
+						}
 						r.Username = username
 						r.ClearPassword = sdec
 					}
@@ -500,6 +505,16 @@ func (g *Gosecretsdump) decryptHash(record esent.Esent_record) (dumpedHash, erro
 		fmt.Println("DO NOT VSS METHOD?")
 	}
 	return d, nil
+}
+
+//https://stackoverflow.com/questions/53069040/checking-a-string-contains-only-ascii-characters
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > u.MaxASCII {
+			return false
+		}
+	}
+	return true
 }
 
 type uacFlags struct {
