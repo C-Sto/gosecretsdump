@@ -4,16 +4,11 @@ import (
 	"flag"
 	"os"
 
-	"github.com/c-sto/gosecretsdump/libdumpsecrets"
+	"github.com/c-sto/gosecretsdump/cmd"
 )
 
-type settings struct {
-	NtdsLocation   string
-	SystemLocation string
-}
-
 func main() {
-	s := libdumpsecrets.Settings{}
+	s := cmd.Settings{}
 	flag.StringVar(&s.Outfile, "out", "", "Location to export output")
 	flag.StringVar(&s.NTDSLoc, "ntds", "", "Location of the NTDS file (required)")
 	flag.StringVar(&s.SystemLoc, "system", "", "Location of the SYSTEM file (required)")
@@ -27,9 +22,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	gsd := libdumpsecrets.Gosecretsdump{}.Init(s)
-
-	gsd.Dump()
+	cmd.GoSecretsDump(s)
 }
 
 //info dumped out of https://github.com/SecureAuthCorp/impacket/blob/master/impacket/examples/secretsdump.py
