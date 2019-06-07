@@ -86,11 +86,10 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 		username := ""
 		var plainBytes []byte
 		//check if the record is something something? has a UPN?
-		fmt.Println(record)
 		if record.Column[nToInternal["userPrincipalName"]].StrVal != "" {
 			domain := record.Column[nToInternal["userPrincipalName"]].StrVal
 			parts := strings.Split(domain, "@")
-			domain = parts[len(parts)]
+			domain = parts[len(parts)-1]
 			username = fmt.Sprintf("%s\\%s", domain, record.Column[nToInternal["sAMAccountName"]].StrVal)
 		} else {
 			username = record.Column[nToInternal["sAMAccountName"]].StrVal
