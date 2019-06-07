@@ -55,13 +55,13 @@ func decodeUAC(val int) uacFlags {
 	return r
 }
 
-type suppInfo struct {
+type SuppInfo struct {
 	Username      string
 	ClearPassword string
 	NotASCII      bool
 }
 
-func (s suppInfo) HashString() string {
+func (s SuppInfo) HashString() string {
 	frmt := "%s:CLEARTEXT:%s"
 	if s.NotASCII {
 		frmt = "%s:CLEARTEXT_HEX:%s"
@@ -76,7 +76,7 @@ type DumpedHash struct {
 	Rid      string
 	Enabled  bool
 	UAC      uacFlags
-	Supp     suppInfo
+	Supp     SuppInfo
 }
 
 func (d DumpedHash) HashString() string {

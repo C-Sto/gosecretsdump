@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/c-sto/gosecretsdump/pkg/systemreader"
 
@@ -32,6 +33,7 @@ func New(system, ntds string) DitReader {
 		db:                 esent.Esedb{}.Init(ntds),
 		userData:           make(chan DumpedHash, 100),
 	}
+
 	r.cursor = r.db.OpenTable("datatable")
 	go r.dump() //start dumping the file immediately output will be put into the output channel as it comes
 
@@ -74,7 +76,7 @@ type DitReader struct {
 }
 
 func (d *DitReader) dump() {
-
+	d.Dump()
 }
 
 //GetOutChan returns a reference to the objects output channel for read only operations
@@ -83,6 +85,7 @@ func (d DitReader) GetOutChan() <-chan DumpedHash {
 }
 
 func (d *DitReader) Dump() error {
+	wg := &sync.WaitGroup{}
 	//if local (always local for now)
 	if d.systemHiveLocation != "" {
 		ls := systemreader.New(d.systemHiveLocation)
@@ -111,22 +114,23 @@ func (d *DitReader) Dump() error {
 
 		//check for the right kind of record
 		if _, ok := accTypes[record.Column[nToInternal["sAMAccountType"]].Long]; ok {
-
-			//attempt to decrypt the record
-			dh, err := d.DecryptRecord(record)
-			if err != nil {
-				fmt.Println("Coudln't decrypt record:", err.Error())
-				continue
-			}
-			g.handleHash(dh)
-			ds, err := g.decryptSupp(record)
-			if err != nil {
-				fmt.Println("Coudln't decrypt record:", err.Error())
-				continue
-			}
-			g.handleSupp(dh, ds)
+			//async yay
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				//attempt to decrypt the record
+				dh, err := d.DecryptRecord(record)
+				if err != nil {
+					fmt.Println("Coudln't decrypt record:", err.Error())
+					return
+				}
+				d.userData <- dh
+			}()
 		}
 	}
+	wg.Wait()
+	close(d.userData)
+	return nil
 }
 
 func (d DitReader) PEK() [][]byte {

@@ -49,7 +49,7 @@ func NewSAMRUserProperties(data []byte) SAMRUserProperties {
 	lData = lData[2:]
 	//fill properties
 	for i := uint16(0); i < r.PropertyCount; i++ {
-		np := SAMR_USER_PROPERTY{}
+		np := SAMRUserProperty{}
 		np.NameLength = binary.LittleEndian.Uint16(lData[:2])
 		lData = lData[2:]
 		np.ValueLength = binary.LittleEndian.Uint16(lData[:2])
@@ -102,7 +102,7 @@ func (s SAMRRPCSID) FormatCanonical() string {
 }
 
 func NewSAMRRPCSID(data []byte) (SAMRRPCSID, error) {
-	r := SAMR_RPC_SID{}
+	r := SAMRRPCSID{}
 	if len(data) < 6 {
 		return r, fmt.Errorf("Bad SAMR data: %s", string(data))
 	}

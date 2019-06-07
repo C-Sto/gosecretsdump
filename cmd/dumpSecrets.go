@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"sync"
+	"fmt"
 
 	"github.com/c-sto/gosecretsdump/pkg/ditreader"
 )
@@ -16,14 +16,12 @@ type Settings struct {
 }
 
 func GoSecretsDump(s Settings) {
-	wg := &sync.WaitGroup{}
-	dr := ditreader.New(s.NTDSLoc, s.SystemLoc)
-	//start reading from db
-	go dr.Dump(wg)
-
+	dr := ditreader.New(s.SystemLoc, s.NTDSLoc)
 	//handle any output
+	dataChan := dr.GetOutChan()
 
-	//ensure dumping has finished before exiting
-	wg.Wait()
+	for val := range dataChan {
+		fmt.Println(val.HashString())
+	}
 
 }

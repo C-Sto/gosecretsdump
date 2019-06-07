@@ -139,7 +139,6 @@ func (e *Esedb) OpenTable(s string) *Cursor {
 }
 
 func (e *Esedb) mountDb() {
-
 	//the first page is the dbheader
 	e.dbHeader = e.getMainHeader()
 	e.pageSize = e.dbHeader.PageSize
