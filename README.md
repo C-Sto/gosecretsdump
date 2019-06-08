@@ -22,3 +22,20 @@ You will need to obtain the NTDS.dit and SYSTEM file from the target domain cont
 Example (there is a test .dit and system file in this repo)
 
 `gosecretsdump -ntds test/ntds.dit -system test/system`
+
+## Comparison
+Using a large-ish .dit file (approx 50k users)
+
+Impacket secretsdump.py
+```
+time ./secretsdump.py local -system ~/go/src/github.com/c-sto/gosecretsdump/test/big/registry/SYSTEM -ntds ~/go/src/github.com/c-sto/gosecretsdump/test/big/Active\ Directory/ntds.dit
+<snip>
+./secretsdump.py local -system  -ntds   668.82s user 4.94s system 99% cpu 11:18.98 total
+```
+
+gosecretsdump
+```
+time go run main.go -system ~/go/src/github.com/c-sto/gosecretsdump/test/big/registry/SYSTEM -ntds ~/go/src/github.com/c-sto/gosecretsdump/test/big/Active\ Directory/ntds.dit
+<snip>
+go run main.go -system  -ntds   15.93s user 1.50s system 126% cpu 13.824 total
+```
