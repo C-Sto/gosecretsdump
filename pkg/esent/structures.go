@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
+
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/unicode"
 )
 
 type cat_entry struct {
@@ -17,8 +21,35 @@ type table struct {
 	Columns    *OrderedMap_cat_entry        //map[string]cat_entry
 	Indexes    *OrderedMap_esent_leaf_entry //map[string]esent_leaf_entry
 	Longvalues *OrderedMap_esent_leaf_entry //map[string]esent_leaf_entry
+	//data       map[string]interface{}
+	//columns    []string
 }
 
+/*
+func newTable(name string) table {
+	return table{
+		Name: name,
+		data: make(map[string]interface{}),
+	}
+}
+
+func (t *table) AddColumn(s string) {
+	t.data[s] = nil
+	t.columns = append(t.columns, s)
+}
+
+func (t table) AddData(s string, v interface{}) {
+	t.data[s] = v
+}
+
+func (t table) Columns() []string {
+	return t.columns
+}
+
+func (t table) Get(s string) {
+
+}
+//*/
 type esent_page_header struct {
 	CheckSum                     uint64
 	ECCCheckSum                  uint32
@@ -293,7 +324,124 @@ type Cursor struct {
 }
 
 type Esent_record struct {
-	Column map[string]esent_recordVal
+	column map[string]*esent_recordVal
+}
+
+func NewRecord(i int) Esent_record {
+	return Esent_record{column: make(map[string]*esent_recordVal, i)}
+}
+
+func (e *Esent_record) DeleteColumn(c string) {
+	//delete(e.column, c)
+}
+
+func (e *Esent_record) ConvTup(c string) {
+	r := e.column[c]
+	if r == nil {
+		//e.column[c] = &esent_recordVal{}
+		return
+	}
+	if r.GetType() == "Tup" {
+		t := r.TupVal[0]
+		r.Typ = "Byt"
+		r.BytVal = t
+	}
+}
+
+func (e *Esent_record) UnpackInline(column string, t uint32) {
+	r := e.column[column]
+	if r == nil {
+		//e.column[column] = &esent_recordVal{}
+		return
+	}
+	r.UnpackInline(t)
+}
+
+func (e *Esent_record) SetString(column string, codePage uint32) {
+	//handle strings arapantly??
+	if e.column[column] == nil {
+		//e.column[column] = &esent_recordVal{}
+		return
+	}
+	//if _, ok := record.Column[column]; ok { //not nil/empty
+	if _, ok := stringCodePages[codePage]; !ok { //known decoding type
+		panic("unknown codepage or something? idk")
+	}
+	v := e.column[column]
+	//decode the thing aaaaaaa
+	if codePage == 20127 { //ascii
+		//v easy
+		//record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(record.Column[column].BytVal)}
+		v.Typ = "Str"
+		v.StrVal = string(v.BytVal)
+	} else if codePage == 1200 { //unicode oh boy
+		//unicode utf16le
+		d := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
+		b, err := d.Bytes(v.BytVal)
+		if err != nil {
+			panic(err)
+		}
+		v.Typ = "Str"
+		v.StrVal = string(b)
+		//record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(b)}
+	} else if codePage == 1252 {
+		//fmt.Println("DO WESTERN!!", string(record.Column[column].BytVal))
+		d := charmap.Windows1252.NewDecoder()
+		b, err := d.Bytes(v.BytVal)
+		if err != nil {
+			panic(err)
+		}
+		v.Typ = "Str"
+		v.StrVal = string(b)
+		//western... idk yet
+	} else {
+		fmt.Println("UNKNOWN STRING?")
+		panic("aa")
+	}
+	//stringDecoder = StringCodePages[columnRecord['CodePage']]
+	//it's already a string, probably in a weird format... I'll deal with this later I Guess?
+	//record.Column[column]
+}
+
+//}
+
+func (e *Esent_record) UpdateBytVal(b []byte, column string) {
+	if _, ok := e.column[column]; !ok {
+		e.column[column] = &esent_recordVal{}
+	}
+	e.column[column].UpdateBytVal(b)
+}
+
+func (e *Esent_record) GetLongVal(column string) (int32, bool) {
+	v, ok := e.column[column]
+	if ok {
+		return v.Long, ok
+	}
+	return 0, ok
+}
+
+func (e *Esent_record) GetBytVal(column string) ([]byte, bool) {
+	v, ok := e.column[column]
+	if ok {
+		return v.BytVal, ok
+	}
+	return nil, ok
+}
+
+func (e *Esent_record) StrVal(column string) (string, bool) {
+	v, ok := e.column[column]
+	if ok {
+		return v.StrVal, ok
+	}
+	return "", ok
+}
+
+func (e *Esent_record) GetRecord(column string) (*esent_recordVal, bool) {
+	v, ok := e.column[column]
+	if ok {
+		return v, ok
+	}
+	return nil, ok
 }
 
 //alternative way of doing this (and probably better) would be casting everything back
@@ -344,11 +492,22 @@ type esent_recordVal struct {
 	*/
 }
 
-func (e esent_recordVal) Unpack(t uint32, in_data []byte) esent_recordVal {
-	data := make([]byte, len(in_data))
-	copy(data, in_data)
-	r := esent_recordVal{}
+func (e *esent_recordVal) UpdateBytVal(d []byte) {
+	if e == nil {
+		e = &esent_recordVal{}
+	}
+	e.Typ = "Byt"
+	e.BytVal = d
+}
 
+func (e esent_recordVal) GetType() string {
+	return e.Typ
+}
+
+func (r *esent_recordVal) UnpackInline(t uint32) {
+	if len(r.BytVal) < 1 {
+		return
+	}
 	switch t {
 	case JET_coltypNil:
 		r.Typ = "Nil"
@@ -389,9 +548,104 @@ func (e esent_recordVal) Unpack(t uint32, in_data []byte) esent_recordVal {
 	case JET_coltypMax:
 		r.Typ = "Max"
 	}
+	buf := bytes.NewReader(r.BytVal)
+	switch t {
+	case JET_coltypBit:
+		if r.BytVal[0] > 0 {
+			r.Bit = true
+		} else {
+			r.Bit = false
+		}
+	case JET_coltypUnsignedByte:
+		r.UnsByt = r.BytVal[0]
+	case JET_coltypShort:
+		binary.Read(buf, binary.LittleEndian, &r.Short)
+	case JET_coltypLong:
+		binary.Read(buf, binary.LittleEndian, &r.Long)
+	case JET_coltypCurrency:
+		binary.Read(buf, binary.LittleEndian, &r.Curr)
+	case JET_coltypIEEESingle:
+		binary.Read(buf, binary.LittleEndian, &r.IEEESingl)
+	case JET_coltypIEEEDouble:
+		binary.Read(buf, binary.LittleEndian, &r.IEEEDoubl)
+	case JET_coltypDateTime:
+		binary.Read(buf, binary.LittleEndian, &r.DateTim)
+	case JET_coltypUnsignedLong:
+		binary.Read(buf, binary.LittleEndian, &r.UnsLng)
+	case JET_coltypLongLong:
+		binary.Read(buf, binary.LittleEndian, &r.LngLng)
+	case JET_coltypGUID:
+		binary.Read(buf, binary.LittleEndian, &r.Guid)
+	case JET_coltypUnsignedShort:
+		binary.Read(buf, binary.LittleEndian, &r.UnsShrt)
+	case JET_coltypBinary:
+		fallthrough
+	case JET_coltypText:
+		fallthrough
+	case JET_coltypLongBinary:
+		fallthrough
+	case JET_coltypLongText:
+		fallthrough
+	case JET_coltypSLV:
+		fallthrough
+	case JET_coltypNil:
+		fallthrough
+	case JET_coltypMax:
+		fallthrough
+	// 'None' length? just store it as a hex string ok ????
+	default:
+		//store as raw bytes here to avoid conversion overhead
+		//store as hex string here for legacy compatibility
+		//r.StrVal = hex.EncodeToString(data) // (removed during optimisations)
+	}
+}
+
+func (e esent_recordVal) Unpack(t uint32, data []byte) esent_recordVal {
+	r := esent_recordVal{}
 	if len(data) < 1 {
 		return r
 	}
+	switch t {
+	case JET_coltypNil:
+		r.Typ = "Nil"
+	case JET_coltypBit:
+		r.Typ = "Bit"
+	case JET_coltypUnsignedByte:
+		r.Typ = "UnsByt"
+	case JET_coltypShort:
+		r.Typ = "Short"
+	case JET_coltypLong:
+		r.Typ = "Long"
+	case JET_coltypCurrency:
+		r.Typ = "Curr"
+	case JET_coltypIEEESingle:
+		r.Typ = "IEEESingl"
+	case JET_coltypIEEEDouble:
+		r.Typ = "IEEEDoubl"
+	case JET_coltypDateTime:
+		r.Typ = "DateTim"
+	case JET_coltypBinary:
+		r.Typ = "Bin"
+	case JET_coltypText:
+		r.Typ = "Txt"
+	case JET_coltypLongBinary:
+		r.Typ = "LongBin"
+	case JET_coltypLongText:
+		r.Typ = "LongTxt"
+	case JET_coltypSLV:
+		r.Typ = "SLV"
+	case JET_coltypUnsignedLong:
+		r.Typ = "UnsLng"
+	case JET_coltypLongLong:
+		r.Typ = "LngLng"
+	case JET_coltypGUID:
+		r.Typ = "GUID"
+	case JET_coltypUnsignedShort:
+		r.Typ = "UnsShrt"
+	case JET_coltypMax:
+		r.Typ = "Max"
+	}
+
 	buf := bytes.NewReader(data)
 	switch t {
 	case JET_coltypBit:
@@ -453,8 +707,30 @@ type tag_item struct {
 }
 
 type taggedItems struct {
+	//all of the tagged items
 	M map[uint16]tag_item
 	O []uint16
+}
+
+func (t *taggedItems) Add(tag tag_item, k uint16) {
+	//NOT THREAD SAFE
+	t.O = append(t.O, k)
+	t.M[k] = tag
+}
+
+func (t *taggedItems) Parse() {
+	prevKey := t.O[0]
+
+	for i := 1; i < len(t.O); i++ {
+		vals0 := t.M[prevKey]
+		vals := t.M[t.O[i]]
+		t.M[prevKey] = tag_item{
+			TaggedOffset: vals0.TaggedOffset,
+			TagLen:       vals.TaggedOffset - vals0.TaggedOffset,
+			Flags:        vals0.Flags,
+		}
+		prevKey = t.O[i]
+	}
 }
 
 type OrderedMap_cat_entry struct {
