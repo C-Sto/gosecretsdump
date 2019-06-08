@@ -11,7 +11,7 @@ import (
 
 func main() {
 
-	defer profile.Start().Stop()
+	defer profile.Start(profile.ProfilePath("./")).Stop()
 
 	s := cmd.Settings{}
 	flag.StringVar(&s.Outfile, "out", "", "Location to export output")

@@ -14,18 +14,21 @@ import (
 func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error) {
 	dh := DumpedHash{}
 	z := nToInternal["objectSid"]
-	sid, err := NewSAMRRPCSID(record.Column[z].BytVal)
+	v, _ := record.GetBytVal(z)
+	sid, err := NewSAMRRPCSID(v) //record.Column[z].BytVal)
 	if err != nil {
 		return dh, err
 	}
 	dh.Rid = sid.FormatCanonical()[strings.LastIndex(sid.FormatCanonical(), "-")+1:]
 
 	//lm hash
-	if record.Column[nToInternal["dBCSPwd"]].StrVal != "" {
+	if v, ok := record.StrVal(nToInternal["dBCSPwd"]); ok && v != "" {
+		//if record.Column[nToInternal["dBCSPwd"]].StrVal != "" {
 		tmpLM := []byte{}
-		encryptedLM := NewCryptedHash(record.Column[nToInternal["dBCSPwd"]].BytVal)
+		b, _ := record.GetBytVal(nToInternal["dBCSPwd"])
+		encryptedLM := NewCryptedHash(b)
 		if bytes.Compare(encryptedLM.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
-			encryptedLMW := NewCryptedHashW16(record.Column[nToInternal["dBCSPwd"]].BytVal)
+			encryptedLMW := NewCryptedHashW16(b)
 			pekIndex := encryptedLMW.Header
 			tmpLM = decryptAES(d.pek[pekIndex[4]], encryptedLMW.EncrypedHash[:16], encryptedLMW.KeyMaterial[:])
 		} else {
@@ -38,11 +41,11 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	}
 
 	//nt hash
-	if v := record.Column[nToInternal["unicodePwd"]].BytVal; len(v) > 0 {
+	if v, _ := record.GetBytVal(nToInternal["unicodePwd"]); len(v) > 0 { //  record.Column[nToInternal["unicodePwd"]].BytVal; len(v) > 0 {
 		tmpNT := []byte{}
 		encryptedNT := NewCryptedHash(v)
 		if bytes.Compare(encryptedNT.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
-			encryptedNTW := NewCryptedHashW16(record.Column[nToInternal["unicodePwd"]].BytVal)
+			encryptedNTW := NewCryptedHashW16(v)
 			pekIndex := encryptedNTW.Header
 			tmpNT = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncrypedHash[:16], encryptedNTW.KeyMaterial[:])
 		} else {
@@ -55,20 +58,22 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	}
 
 	//username
-	if v := record.Column[nToInternal["userPrincipalName"]].StrVal; v != "" {
-		rec := record.Column[nToInternal["userPrincipalName"]].StrVal
+	if v, ok := record.StrVal(nToInternal["userPrincipalName"]); ok && v != "" { //record.Column[nToInternal["userPrincipalName"]].StrVal; v != "" {
+		rec := v
 		recs := strings.Split(rec, "@")
 		domain := recs[len(recs)-1]
-		dh.Username = fmt.Sprintf("%s\\%s", domain, record.Column[nToInternal["sAMAccountName"]].StrVal)
+		dh.Username = fmt.Sprintf("%s\\%s", domain, v)
 	} else {
-		dh.Username = fmt.Sprintf("%s", record.Column[nToInternal["sAMAccountName"]].StrVal)
+		v, _ := record.StrVal(nToInternal["sAMAccountName"])
+		dh.Username = fmt.Sprintf("%s", v)
 	}
 
-	if v := record.Column[nToInternal["userAccountControl"]].Long; v != 0 {
+	if v, _ := record.GetLongVal(nToInternal["userAccountControl"]); v != 0 { // record.Column[nToInternal["userAccountControl"]].Long; v != 0 {
 		dh.UAC = decodeUAC(int(v))
 	}
 
-	if val := record.Column[nToInternal["supplementalCredentials"]]; len(val.BytVal) > 24 {
+	if val, _ := record.GetBytVal(nToInternal["supplementalCredentials"]); len(val) > 24 {
+		//if val := record.Column[nToInternal["supplementalCredentials"]]; len(val.BytVal) > 24 {
 		var err error
 		dh.Supp, err = d.decryptSupp(record)
 		if err != nil {
@@ -81,21 +86,19 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 
 func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 	r := SuppInfo{}
-	val := record.Column[nToInternal["supplementalCredentials"]]
-	if len(val.BytVal) > 24 { //is the value above the minimum for plaintex passwords?
-		username := ""
+	bval, _ := record.GetBytVal(nToInternal["supplementalCredentials"]) // record.Column[nToInternal["supplementalCredentials"]]
+	if len(bval) > 24 {                                                 //is the value above the minimum for plaintex passwords?
+		username, _ := record.StrVal(nToInternal["sAMAccountName"])
 		var plainBytes []byte
 		//check if the record is something something? has a UPN?
-		if record.Column[nToInternal["userPrincipalName"]].StrVal != "" {
-			domain := record.Column[nToInternal["userPrincipalName"]].StrVal
+		if v, _ := record.StrVal(nToInternal["userPrincipalName"]); v != "" { //record.Column[nToInternal["userPrincipalName"]].StrVal != "" {
+			domain := v
 			parts := strings.Split(domain, "@")
 			domain = parts[len(parts)-1]
-			username = fmt.Sprintf("%s\\%s", domain, record.Column[nToInternal["sAMAccountName"]].StrVal)
-		} else {
-			username = record.Column[nToInternal["sAMAccountName"]].StrVal
+			username = fmt.Sprintf("%s\\%s", domain, username)
 		}
 		//fmt.Println(val.BytVal)
-		ct := NewCryptedHash(val.BytVal)
+		ct := NewCryptedHash(bval)
 		//ct := crypted_hash{}.Init(val.BytVal)
 
 		//check for windows 2016 tp4

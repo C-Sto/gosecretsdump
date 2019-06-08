@@ -122,20 +122,23 @@ func (d *DitReader) Dump() error {
 		}
 
 		//check for the right kind of record
-		if _, ok := accTypes[record.Column[nToInternal["sAMAccountType"]].Long]; ok {
-			//async yay
-			/*
-				dh, err := d.DecryptRecord(record)
-				if err != nil {
-					fmt.Println("Coudln't decrypt record:", err.Error())
-					break
-				}
-				d.userData <- dh
+		v, ook := record.GetLongVal(nToInternal["sAMAccountType"])
+		if ook {
+			if _, ok := accTypes[v]; ok {
+				//async yay
+				/*
+					dh, err := d.DecryptRecord(record)
+					if err != nil {
+						fmt.Println("Coudln't decrypt record:", err.Error())
+						break
+					}
+					d.userData <- dh
+					//*/
+				///*
+				d.cryptwg.Add(1)
+				d.decryptWork <- record
 				//*/
-			///*
-			d.cryptwg.Add(1)
-			d.decryptWork <- record
-			//*/
+			}
 		}
 	}
 	d.cryptwg.Wait()
@@ -174,11 +177,15 @@ func (d *DitReader) getPek() [][]byte {
 		if err != nil && err.Error() == "ignore" {
 			break //lol fml
 		}
-		if v, ok := record.Column[nToInternal["pekList"]]; ok && len(v.BytVal) > 0 {
-			pekList = v.BytVal
+
+		if v, ok := record.GetBytVal(nToInternal["pekList"]); ok && len(v) > 0 {
+			//if v, ok := record.Column[nToInternal["pekList"]]; ok && len(v.BytVal) > 0 {
+			pekList = v
 			break
 		}
-		if _, ok := record.Column[nToInternal["sAMAccountType"]]; ok {
+
+		if _, ok := record.GetRecord(nToInternal["sAMAccountType"]); ok {
+			//if _, ok := record.Column[nToInternal["sAMAccountType"]]; ok {
 			//users found?
 			d.tmpUsers = append(d.tmpUsers, record)
 		}
