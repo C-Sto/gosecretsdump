@@ -17,8 +17,35 @@ type table struct {
 	Columns    *OrderedMap_cat_entry        //map[string]cat_entry
 	Indexes    *OrderedMap_esent_leaf_entry //map[string]esent_leaf_entry
 	Longvalues *OrderedMap_esent_leaf_entry //map[string]esent_leaf_entry
+	//data       map[string]interface{}
+	//columns    []string
 }
 
+/*
+func newTable(name string) table {
+	return table{
+		Name: name,
+		data: make(map[string]interface{}),
+	}
+}
+
+func (t *table) AddColumn(s string) {
+	t.data[s] = nil
+	t.columns = append(t.columns, s)
+}
+
+func (t table) AddData(s string, v interface{}) {
+	t.data[s] = v
+}
+
+func (t table) Columns() []string {
+	return t.columns
+}
+
+func (t table) Get(s string) {
+
+}
+//*/
 type esent_page_header struct {
 	CheckSum                     uint64
 	ECCCheckSum                  uint32
@@ -344,9 +371,7 @@ type esent_recordVal struct {
 	*/
 }
 
-func (e esent_recordVal) Unpack(t uint32, in_data []byte) esent_recordVal {
-	data := make([]byte, len(in_data))
-	copy(data, in_data)
+func (e esent_recordVal) Unpack(t uint32, data []byte) esent_recordVal {
 	r := esent_recordVal{}
 
 	switch t {
@@ -453,8 +478,30 @@ type tag_item struct {
 }
 
 type taggedItems struct {
+	//all of the tagged items
 	M map[uint16]tag_item
 	O []uint16
+}
+
+func (t *taggedItems) Add(tag tag_item, k uint16) {
+	//NOT THREAD SAFE
+	t.O = append(t.O, k)
+	t.M[k] = tag
+}
+
+func (t *taggedItems) Parse() {
+	prevKey := t.O[0]
+
+	for i := 1; i < len(t.O); i++ {
+		vals0 := t.M[prevKey]
+		vals := t.M[t.O[i]]
+		t.M[prevKey] = tag_item{
+			TaggedOffset: vals0.TaggedOffset,
+			TagLen:       vals.TaggedOffset - vals0.TaggedOffset,
+			Flags:        vals0.Flags,
+		}
+		prevKey = t.O[i]
+	}
 }
 
 type OrderedMap_cat_entry struct {

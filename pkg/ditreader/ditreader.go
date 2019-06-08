@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"runtime"
 	"sync"
 
 	"github.com/c-sto/gosecretsdump/pkg/systemreader"
@@ -16,6 +17,7 @@ import (
 
 //New Creates a new dit dumper
 func New(system, ntds string) DitReader {
+
 	r := DitReader{
 		isRemote:           false,
 		history:            false,
@@ -32,6 +34,12 @@ func New(system, ntds string) DitReader {
 		ntdsFileLocation:   ntds,
 		db:                 esent.Esedb{}.Init(ntds),
 		userData:           make(chan DumpedHash, 100),
+		decryptWork:        make(chan esent.Esent_record, 100),
+		cryptwg:            &sync.WaitGroup{},
+	}
+
+	for i := 0; i < runtime.NumCPU()-1; i++ {
+		go r.decryptWorker()
 	}
 
 	r.cursor = r.db.OpenTable("datatable")
@@ -70,7 +78,9 @@ type DitReader struct {
 	tmpUsers []esent.Esent_record
 
 	//output chans
-	userData chan DumpedHash
+	userData    chan DumpedHash
+	decryptWork chan esent.Esent_record
+	cryptwg     *sync.WaitGroup
 
 	//settings Settings
 }
@@ -85,7 +95,6 @@ func (d DitReader) GetOutChan() <-chan DumpedHash {
 }
 
 func (d *DitReader) Dump() error {
-	wg := &sync.WaitGroup{}
 	//if local (always local for now)
 	if d.systemHiveLocation != "" {
 		ls := systemreader.New(d.systemHiveLocation)
@@ -115,22 +124,37 @@ func (d *DitReader) Dump() error {
 		//check for the right kind of record
 		if _, ok := accTypes[record.Column[nToInternal["sAMAccountType"]].Long]; ok {
 			//async yay
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				//attempt to decrypt the record
+			/*
 				dh, err := d.DecryptRecord(record)
 				if err != nil {
 					fmt.Println("Coudln't decrypt record:", err.Error())
-					return
+					break
 				}
 				d.userData <- dh
-			}()
+				//*/
+			///*
+			d.cryptwg.Add(1)
+			d.decryptWork <- record
+			//*/
 		}
 	}
-	wg.Wait()
+	d.cryptwg.Wait()
 	close(d.userData)
 	return nil
+}
+
+func (d *DitReader) decryptWorker() {
+	for {
+		r := <-d.decryptWork
+		//attempt to decrypt the record
+		dh, err := d.DecryptRecord(r)
+		if err != nil {
+			fmt.Println("Coudln't decrypt record:", err.Error())
+			return
+		}
+		d.userData <- dh
+		d.cryptwg.Done()
+	}
 }
 
 func (d DitReader) PEK() [][]byte {
