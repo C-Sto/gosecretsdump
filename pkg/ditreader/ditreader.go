@@ -122,7 +122,7 @@ func (d *DitReader) Dump() error {
 		}
 
 		//check for the right kind of record
-		v, ook := record.GetLongVal(nToInternal["sAMAccountType"])
+		v, ook := record.GetLongVal(nsAMAccountType)
 		if ook {
 			if _, ok := accTypes[v]; ok {
 				//async yay
@@ -178,14 +178,14 @@ func (d *DitReader) getPek() [][]byte {
 			break //lol fml
 		}
 
-		if v, ok := record.GetBytVal(nToInternal["pekList"]); ok && len(v) > 0 {
-			//if v, ok := record.Column[nToInternal["pekList"]]; ok && len(v.BytVal) > 0 {
+		if v, ok := record.GetBytVal(npekList); ok && len(v) > 0 {
+			//if v, ok := record.Column[pekList"]]; ok && len(v.BytVal) > 0 {
 			pekList = v
 			break
 		}
 
-		if _, ok := record.GetRecord(nToInternal["sAMAccountType"]); ok {
-			//if _, ok := record.Column[nToInternal["sAMAccountType"]]; ok {
+		if _, ok := record.GetRecord(nsAMAccountType); ok {
+			//if _, ok := record.Column[sAMAccountType"]]; ok {
 			//users found?
 			d.tmpUsers = append(d.tmpUsers, record)
 		}

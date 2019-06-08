@@ -1,6 +1,29 @@
 package ditreader
 
-var nToInternal = map[string]string{
+const (
+	nuSNCreated              = "ATTq131091"
+	nuSNChanged              = "ATTq131192"
+	nname                    = "ATTm3"
+	nobjectGUID              = "ATTk589826"
+	nobjectSid               = "ATTr589970"
+	nuserAccountControl      = "ATTj589832"
+	nprimaryGroupID          = "ATTj589922"
+	naccountExpires          = "ATTq589983"
+	nlogonCount              = "ATTj589993"
+	nsAMAccountName          = "ATTm590045"
+	nsAMAccountType          = "ATTj590126"
+	nlastLogonTimestamp      = "ATTq589876"
+	nuserPrincipalName       = "ATTm590480"
+	nunicodePwd              = "ATTk589914"
+	ndBCSPwd                 = "ATTk589879"
+	nntPwdHistory            = "ATTk589918"
+	nlmPwdHistory            = "ATTk589984"
+	npekList                 = "ATTk590689"
+	nsupplementalCredentials = "ATTk589949"
+	npwdLastSet              = "ATTq589920"
+)
+
+var nnToInternal = map[string]string{
 	"uSNCreated":              "ATTq131091",
 	"uSNChanged":              "ATTq131192",
 	"name":                    "ATTm3",

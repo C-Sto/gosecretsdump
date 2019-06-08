@@ -332,64 +332,65 @@ func NewRecord(i int) Esent_record {
 }
 
 func (e *Esent_record) DeleteColumn(c string) {
-	delete(e.column, c)
+	//delete(e.column, c)
 }
 
 func (e *Esent_record) ConvTup(c string) {
-
-	if e.column[c] == nil {
-		e.column[c] = &esent_recordVal{}
+	r := e.column[c]
+	if r == nil {
+		//e.column[c] = &esent_recordVal{}
+		return
 	}
-	if e.column[c].GetType() == "Tup" {
-		t := e.column[c].TupVal[0]
-		v := e.column[c]
-		v.Typ = "Byt"
-		v.BytVal = t
+	if r.GetType() == "Tup" {
+		t := r.TupVal[0]
+		r.Typ = "Byt"
+		r.BytVal = t
 	}
 }
 
 func (e *Esent_record) UnpackInline(column string, t uint32) {
-	if e.column[column] == nil {
-		e.column[column] = &esent_recordVal{}
+	r := e.column[column]
+	if r == nil {
+		//e.column[column] = &esent_recordVal{}
+		return
 	}
-	e.column[column].UnpackInline(t)
+	r.UnpackInline(t)
 }
 
 func (e *Esent_record) SetString(column string, codePage uint32) {
 	//handle strings arapantly??
 	if e.column[column] == nil {
-		e.column[column] = &esent_recordVal{}
+		//e.column[column] = &esent_recordVal{}
+		return
 	}
 	//if _, ok := record.Column[column]; ok { //not nil/empty
 	if _, ok := stringCodePages[codePage]; !ok { //known decoding type
 		panic("unknown codepage or something? idk")
 	}
+	v := e.column[column]
 	//decode the thing aaaaaaa
 	if codePage == 20127 { //ascii
 		//v easy
 		//record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(record.Column[column].BytVal)}
-		v := e.column[column]
 		v.Typ = "Str"
-		v.StrVal = string(e.column[column].BytVal)
+		v.StrVal = string(v.BytVal)
 	} else if codePage == 1200 { //unicode oh boy
 		//unicode utf16le
 		d := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
-		b, err := d.Bytes(e.column[column].BytVal)
+		b, err := d.Bytes(v.BytVal)
 		if err != nil {
 			panic(err)
 		}
-		v := e.column[column]
 		v.Typ = "Str"
 		v.StrVal = string(b)
 		//record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(b)}
 	} else if codePage == 1252 {
 		//fmt.Println("DO WESTERN!!", string(record.Column[column].BytVal))
 		d := charmap.Windows1252.NewDecoder()
-		b, err := d.Bytes(e.column[column].BytVal)
+		b, err := d.Bytes(v.BytVal)
 		if err != nil {
 			panic(err)
 		}
-		v := e.column[column]
 		v.Typ = "Str"
 		v.StrVal = string(b)
 		//western... idk yet
@@ -503,13 +504,8 @@ func (e esent_recordVal) GetType() string {
 	return e.Typ
 }
 
-func (e *esent_recordVal) UnpackInline(t uint32) {
-	if e == nil {
-		e = &esent_recordVal{}
-	}
-	data := e.BytVal
-	r := e
-	if len(data) < 1 {
+func (r *esent_recordVal) UnpackInline(t uint32) {
+	if len(r.BytVal) < 1 {
 		return
 	}
 	switch t {
@@ -552,17 +548,16 @@ func (e *esent_recordVal) UnpackInline(t uint32) {
 	case JET_coltypMax:
 		r.Typ = "Max"
 	}
-
-	buf := bytes.NewReader(data)
+	buf := bytes.NewReader(r.BytVal)
 	switch t {
 	case JET_coltypBit:
-		if data[0] > 0 {
+		if r.BytVal[0] > 0 {
 			r.Bit = true
 		} else {
 			r.Bit = false
 		}
 	case JET_coltypUnsignedByte:
-		r.UnsByt = data[0]
+		r.UnsByt = r.BytVal[0]
 	case JET_coltypShort:
 		binary.Read(buf, binary.LittleEndian, &r.Short)
 	case JET_coltypLong:
@@ -600,7 +595,6 @@ func (e *esent_recordVal) UnpackInline(t uint32) {
 	// 'None' length? just store it as a hex string ok ????
 	default:
 		//store as raw bytes here to avoid conversion overhead
-		r.BytVal = data
 		//store as hex string here for legacy compatibility
 		//r.StrVal = hex.EncodeToString(data) // (removed during optimisations)
 	}

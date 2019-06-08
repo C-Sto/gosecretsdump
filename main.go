@@ -4,14 +4,12 @@ import (
 	"flag"
 	"os"
 
-	"github.com/pkg/profile"
-
 	"github.com/c-sto/gosecretsdump/cmd"
 )
 
 func main() {
 
-	defer profile.Start(profile.ProfilePath("./")).Stop()
+	//defer profile.Start(profile.ProfilePath("./")).Stop()
 
 	s := cmd.Settings{}
 	flag.StringVar(&s.Outfile, "out", "", "Location to export output")
