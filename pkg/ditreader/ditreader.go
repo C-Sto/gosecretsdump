@@ -33,8 +33,8 @@ func New(system, ntds string) DitReader {
 		systemHiveLocation: system,
 		ntdsFileLocation:   ntds,
 		db:                 esent.Esedb{}.Init(ntds),
-		userData:           make(chan DumpedHash, 1000),
-		decryptWork:        make(chan esent.Esent_record, 1000),
+		userData:           make(chan DumpedHash, 5000),
+		decryptWork:        make(chan esent.Esent_record, 5000),
 		cryptwg:            &sync.WaitGroup{},
 	}
 

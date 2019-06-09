@@ -1,11 +1,11 @@
 package esent
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 )
 
@@ -13,8 +13,7 @@ import (
 
 //todo: update to handle massive files better (so we don't saturate memory too bad)
 type fileInMem struct {
-	data     []byte
-	lastread int
+	data []byte
 }
 
 func (f *fileInMem) Read(start, count int) []byte {
@@ -27,7 +26,6 @@ func (f *fileInMem) Read(start, count int) []byte {
 	} else {
 		copy(r, f.data[start:start+count])
 	}
-	f.lastread = start + count
 	return r
 }
 
@@ -63,13 +61,12 @@ func (e Esedb) Init(fn string) Esedb {
 	if err != nil {
 		panic(err)
 	}
+	sts, _ := f.Stat()
+	r.db = &fileInMem{data: make([]byte, sts.Size())}
 
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		panic(err)
-	}
+	fr := bufio.NewReader(f)
+	fr.Read(r.db.data)
 	f.Close()
-	r.db = &fileInMem{data, 0}
 
 	//'mount' the database (parse the file)
 	r.mountDb()
