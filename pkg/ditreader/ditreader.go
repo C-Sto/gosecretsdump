@@ -34,8 +34,6 @@ func New(system, ntds string) DitReader {
 		ntdsFileLocation:   ntds,
 		db:                 esent.Esedb{}.Init(ntds),
 		userData:           make(chan DumpedHash, 5000),
-		decryptWork:        make(chan esent.Esent_record, 5000),
-		cryptwg:            &sync.WaitGroup{},
 	}
 
 	if parallel {
@@ -110,13 +108,10 @@ func (d *DitReader) Dump() error {
 		return fmt.Errorf("System hive empty")
 	}
 
-	//fmt.Println("Searching for pekList") //info
 	d.getPek()
-	//verify pek retreived good
 	if len(d.pek) < 1 {
 		panic("NO PEK FOUND THIS IS VERY BAD")
 	}
-	//fmt.Println("Reading and decrypting hashes from", g.ntdsFileLocation)
 
 	for {
 		//read each record from the db
@@ -129,30 +124,16 @@ func (d *DitReader) Dump() error {
 		v, ook := record.GetLongVal(nsAMAccountType)
 		if ook {
 			if _, ok := accTypes[v]; ok {
-				//async yay
-				/*
-					dh, err := d.DecryptRecord(record)
-					if err != nil {
-						fmt.Println("Coudln't decrypt record:", err.Error())
-						break
-					}
-					d.userData <- dh
-					//*/
-				///*
-				//d.cryptwg.Add(1)
-				//d.decryptWork <- record
 				dh, err := d.DecryptRecord(record)
 				if err != nil {
 					fmt.Println("Coudln't decrypt record:", err.Error())
 					continue
 				}
 				d.userData <- dh
-				//d.cryptwg.Done()
-				//*/
+
 			}
 		}
 	}
-	d.cryptwg.Wait()
 	close(d.userData)
 	return nil
 }

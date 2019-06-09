@@ -9,6 +9,7 @@ type esent_page struct {
 	dbHeader esent_db_header
 	data     []byte
 	record   esent_page_header
+	cached   bool
 }
 
 func (p esent_page) getData(start, size int) []byte {
@@ -27,58 +28,61 @@ func (p esent_page) getData(start, size int) []byte {
 	return o
 }
 
-func (p esent_page) getHeader(inData []byte) esent_page_header {
+func (p *esent_page) getHeader() {
 	//decide on record type (ugh)
-	data := make([]byte, len(inData))
-	copy(data, inData)
-	r := esent_page_header{}
-	r.Len = 40 //all record lengths are 40, except the extended
+	p.record = esent_page_header{}
+	//data := make([]byte, len(inData))
+	//copy(data, inData)
+	p.record.Len = 40 //all record lengths are 40, except the extended
+	cursor := 0
 
 	var err error
 	if p.dbHeader.Version < 0x620 || (p.dbHeader.Version == 0x620 && p.dbHeader.FileFormatRevision < 0x0b) {
 		//make it xp
 		//r.recordType = "structure_2003_SP0"
-		r.CheckSum = uint64(binary.LittleEndian.Uint32(data[:4]))
-		data = data[4:]
-		r.PageNumber = uint64(binary.LittleEndian.Uint32(data[:4]))
-		data = data[4:]
+		p.record.CheckSum = uint64(binary.LittleEndian.Uint32(p.data[cursor : cursor+4]))
+		//data = data[4:]
+		cursor += 4
+		p.record.PageNumber = uint64(binary.LittleEndian.Uint32(p.data[cursor : cursor+4]))
+		cursor += 4
 	} else if p.dbHeader.Version == 0x620 && p.dbHeader.FileFormatRevision < 0x11 {
 		//2k3 sp1 and later
 		//r.recordType = "structure_0x620_0x0b"
-		r.CheckSum = uint64(binary.LittleEndian.Uint32(data[:4]))
-		data = data[4:]
-		r.ECCCheckSum = binary.LittleEndian.Uint32(data[:4])
-		data = data[4:]
+		p.record.CheckSum = uint64(binary.LittleEndian.Uint32(p.data[cursor : cursor+4]))
+		cursor += 4
+		p.record.ECCCheckSum = binary.LittleEndian.Uint32(p.data[cursor : cursor+4])
+		cursor += 4
 	} else {
 		//7 and later
 		//r.recordType = "structure_win7"
-		r.CheckSum = binary.LittleEndian.Uint64(data[:8])
-		data = data[8:]
+		p.record.CheckSum = binary.LittleEndian.Uint64(p.data[cursor : cursor+8])
+		//data = data[8:]
+		cursor += 8
 	}
 
 	//do common (all)
-	r.LastModificationTime = binary.LittleEndian.Uint64(data[:8])
-	data = data[8:]
-	r.PreviousPageNumber = binary.LittleEndian.Uint32(data[:4])
-	data = data[4:]
-	r.NextPageNumber = binary.LittleEndian.Uint32(data[:4])
-	data = data[4:]
-	r.FatherDataPage = binary.LittleEndian.Uint32(data[:4])
-	data = data[4:]
-	r.AvailableDataSize = binary.LittleEndian.Uint16(data[:2])
-	data = data[2:]
-	r.AvailableUncommittedDataSize = binary.LittleEndian.Uint16(data[:2])
-	data = data[2:]
-	r.FirstAvailableDataOffset = binary.LittleEndian.Uint16(data[:2])
-	data = data[2:]
-	r.FirstAvailablePageTag = binary.LittleEndian.Uint16(data[:2])
-	data = data[2:]
-	r.PageFlags = binary.LittleEndian.Uint32(data[:4])
-	data = data[4:]
+	p.record.LastModificationTime = binary.LittleEndian.Uint64(p.data[cursor : cursor+8])
+	cursor += 8
+	p.record.PreviousPageNumber = binary.LittleEndian.Uint32(p.data[cursor : cursor+4])
+	cursor += 4
+	p.record.NextPageNumber = binary.LittleEndian.Uint32(p.data[cursor : cursor+4])
+	cursor += 4
+	p.record.FatherDataPage = binary.LittleEndian.Uint32(p.data[cursor : cursor+4])
+	cursor += 4
+	p.record.AvailableDataSize = binary.LittleEndian.Uint16(p.data[cursor : cursor+2])
+	cursor += 2
+	p.record.AvailableUncommittedDataSize = binary.LittleEndian.Uint16(p.data[cursor : cursor+2])
+	cursor += 2
+	p.record.FirstAvailableDataOffset = binary.LittleEndian.Uint16(p.data[cursor : cursor+2])
+	cursor += 2
+	p.record.FirstAvailablePageTag = binary.LittleEndian.Uint16(p.data[cursor : cursor+2])
+	cursor += 2
+	p.record.PageFlags = binary.LittleEndian.Uint32(p.data[cursor : cursor+4])
+	cursor += 4
 
 	//check for extended
 	if p.dbHeader.PageSize > 8192 {
-		r.Len = 0
+		p.record.Len = 0
 		fmt.Println("DO WIN 7 EXTENDED OK")
 		panic("Not implemented")
 		//do win7 extended
@@ -88,7 +92,6 @@ func (p esent_page) getHeader(inData []byte) esent_page_header {
 		panic(err)
 	}
 
-	return r
 }
 
 func (p *esent_page) getTag(i int) (pageFlags uint16, tagData []byte) {

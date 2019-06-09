@@ -13,21 +13,29 @@ import (
 
 //todo: update to handle massive files better (so we don't saturate memory too bad)
 type fileInMem struct {
-	data []byte
+	//data  []byte
+	pages []esent_page
 }
 
-func (f *fileInMem) Read(start, count int) []byte {
-	if start > len(f.data) {
-		return nil
-	}
-	r := make([]byte, count)
-	if start+count > len(f.data) {
-		copy(r, f.data[start:len(f.data)])
-	} else {
-		copy(r, f.data[start:start+count])
-	}
-	return r
+/*
+func (f *fileInMem) ReadWipe(start, count int, buf []byte) {
+
 }
+
+
+func (f *fileInMem) Read(start, count int, buf []byte) {
+	if start > len(f.data) {
+		return
+	}
+	end := start + count
+	//r := make([]byte, count)
+	if end > len(f.data) {
+		end = len(f.data)
+	}
+	copy(buf, f.data[start:end])
+}
+
+*/
 
 type Esedb struct {
 	//options?
@@ -35,7 +43,7 @@ type Esedb struct {
 	pageSize     uint32
 	db           *fileInMem
 	dbHeader     esent_db_header
-	totalPages   uint64
+	totalPages   uint32
 	tables       map[string]table
 	currentTable string
 	isRemote     bool
@@ -57,19 +65,9 @@ func (e Esedb) Init(fn string) Esedb {
 	}
 
 	//read the file into memory
-	f, err := os.Open(fn)
-	if err != nil {
-		panic(err)
-	}
-	sts, _ := f.Stat()
-	r.db = &fileInMem{data: make([]byte, sts.Size())}
-
-	fr := bufio.NewReader(f)
-	fr.Read(r.db.data)
-	f.Close()
 
 	//'mount' the database (parse the file)
-	r.mountDb()
+	r.mountDb(fn)
 	return r
 }
 
@@ -128,15 +126,11 @@ func (e *Esedb) OpenTable(s string) *Cursor {
 	return &r
 }
 
-func (e *Esedb) mountDb() {
+func (e *Esedb) mountDb(filename string) {
 	//the first page is the dbheader
-	e.dbHeader = e.getMainHeader()
-	e.pageSize = e.dbHeader.PageSize
+	e.loadPages(filename)
 
 	// this was a gross way of working out how many pages the file has...
-	fileLen := len(e.db.data)
-	pages := fileLen / int(e.pageSize)
-	e.totalPages = uint64(pages - 2) //unsure why -2 at this stage, I assume first page is header and last page is tail?
 
 	//this is where everything actually gets parsed out
 	e.parseCatalog(CATALOG_PAGE_NUMBER) //4  ?
@@ -311,8 +305,7 @@ func (e *Esedb) parseItemName(l esent_leaf_entry) []byte {
 	return entryName
 }
 
-func (e *Esedb) getMainHeader() esent_db_header {
-	data := e.db.Read(0, int(e.pageSize))
+func (e *Esedb) getMainHeader(data []byte) esent_db_header {
 	dbhd := esent_db_header{}
 	buffer := bytes.NewBuffer(data)
 	err := binary.Read(buffer, binary.LittleEndian, &dbhd)
@@ -322,24 +315,56 @@ func (e *Esedb) getMainHeader() esent_db_header {
 	return dbhd
 }
 
+func (e *Esedb) loadPages(fn string) {
+
+	f, err := os.Open(fn)
+	if err != nil {
+		panic(err)
+	}
+	sts, _ := f.Stat()
+	e.db = &fileInMem{}
+	fr := bufio.NewReader(f)
+	defer f.Close()
+	hdr := make([]byte, e.pageSize)
+	fr.Read(hdr)
+	e.dbHeader = e.getMainHeader(hdr)
+	e.pageSize = e.dbHeader.PageSize
+
+	pages := int(sts.Size()) / int(e.pageSize)
+	e.db.pages = make([]esent_page, pages)
+	e.totalPages = uint32(pages - 2) //unsure why -2 at this stage, I assume first page is header and last page is tail?
+
+	for i := uint32(1); i < e.totalPages; i++ {
+		r := esent_page{data: make([]byte, e.pageSize)}
+
+		start := i * e.pageSize
+		if int(start) > int(sts.Size()) {
+			return
+		}
+		end := start + e.pageSize
+		//r := make([]byte, count)
+		if int(end) > int(sts.Size()) {
+			end = uint32(sts.Size())
+		}
+		fr.Read(r.data)
+
+		r.dbHeader = e.dbHeader
+		if r.data != nil {
+			r.getHeader()
+		}
+		r.cached = true
+		e.db.pages[i] = r
+	}
+}
+
 //retreives a page of data from the file?
 func (e *Esedb) getPage(pageNum uint32) esent_page {
-	r := esent_page{}
-	data := e.db.Read((int(pageNum)+1)*int(e.pageSize), int(e.pageSize))
-
-	//for some reason python version ensures the page is full/
-	//'while len(data) < pagesize' etc
-	//I'm not sure that will ever happen if you're reading properly
-
-	if pageNum <= 0 {
-		panic("NOT ALLOWED TO READ FIRST PAGE AS THIS! USE GETDBHEADER OR WHATEVER IT WAS")
+	if len(e.db.pages) < 1 {
+		panic("NOO")
 	}
-
-	r.dbHeader = e.dbHeader
-	r.data = data
-
-	if data != nil {
-		r.record = r.getHeader(data)
+	//check cache
+	if e.db.pages[pageNum+1].cached {
+		return e.db.pages[pageNum+1]
 	}
-	return r
+	panic("MISS CACHE")
 }

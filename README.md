@@ -24,18 +24,18 @@ Example (there is a test .dit and system file in this repo)
 `gosecretsdump -ntds test/ntds.dit -system test/system`
 
 ## Comparison
-Using a large-ish .dit file (approx 50k users)
+Using a large-ish .dit file (approx 1gb)
 
 Impacket secretsdump.py
 ```
 time ./secretsdump.py local -system ~/go/src/github.com/c-sto/gosecretsdump/test/big/registry/SYSTEM -ntds ~/go/src/github.com/c-sto/gosecretsdump/test/big/Active\ Directory/ntds.dit
 <snip>
-./secretsdump.py local -system  -ntds   668.82s user 4.94s system 99% cpu 11:18.98 total
+./secretsdump.py -system registry/SYSTEM -ntds  local  1197.36s user 12.01s system 98% cpu 20:23.78 total
 ```
 
 gosecretsdump
 ```
 time go run main.go -system ~/go/src/github.com/c-sto/gosecretsdump/test/big/registry/SYSTEM -ntds ~/go/src/github.com/c-sto/gosecretsdump/test/big/Active\ Directory/ntds.dit
 <snip>
-go run main.go -system  -ntds   15.93s user 1.50s system 126% cpu 13.824 total
+go run main.go -system  -ntds  26.28s user 3.78s system 114% cpu 26.178 total
 ```
