@@ -342,10 +342,13 @@ func (e *Esent_record) ConvTup(c string) {
 		return
 	}
 	if r.GetType() == "Tup" {
-		t := r.TupVal[0]
-		r.Typ = "Byt"
-		r.BytVal = t
+		r.ConvTup()
 	}
+}
+
+func (e *esent_recordVal) ConvTup() {
+	e.bytVal = e.tupVal[0]
+	e.typ = "Byt"
 }
 
 func (e *Esent_record) UnpackInline(column string, t uint32) {
@@ -367,40 +370,16 @@ func (e *Esent_record) SetString(column string, codePage uint32) {
 	if _, ok := stringCodePages[codePage]; !ok { //known decoding type
 		panic("unknown codepage or something? idk")
 	}
-	v := e.column[column]
+	e.column[column].SetString(codePage)
 	//decode the thing aaaaaaa
-	if codePage == 20127 { //ascii
-		//v easy
-		//record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(record.Column[column].BytVal)}
-		v.Typ = "Str"
-		v.StrVal = string(v.BytVal)
-	} else if codePage == 1200 { //unicode oh boy
-		//unicode utf16le
-		d := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
-		b, err := d.Bytes(v.BytVal)
-		if err != nil {
-			panic(err)
-		}
-		v.Typ = "Str"
-		v.StrVal = string(b)
-		//record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(b)}
-	} else if codePage == 1252 {
-		//fmt.Println("DO WESTERN!!", string(record.Column[column].BytVal))
-		d := charmap.Windows1252.NewDecoder()
-		b, err := d.Bytes(v.BytVal)
-		if err != nil {
-			panic(err)
-		}
-		v.Typ = "Str"
-		v.StrVal = string(b)
-		//western... idk yet
-	} else {
-		fmt.Println("UNKNOWN STRING?")
-		panic("aa")
-	}
 	//stringDecoder = StringCodePages[columnRecord['CodePage']]
 	//it's already a string, probably in a weird format... I'll deal with this later I Guess?
 	//record.Column[column]
+}
+
+func (v *esent_recordVal) SetString(codePage uint32) {
+	v.typ = "Str"
+	v.codePage = codePage
 }
 
 //}
@@ -415,25 +394,62 @@ func (e *Esent_record) UpdateBytVal(b []byte, column string) {
 func (e *Esent_record) GetLongVal(column string) (int32, bool) {
 	v, ok := e.column[column]
 	if ok {
-		return v.Long, ok
+		return v.Long(), ok
 	}
 	return 0, ok
+}
+
+func (e esent_recordVal) Long() int32 {
+	return int32(binary.LittleEndian.Uint32(e.bytVal))
 }
 
 func (e *Esent_record) GetBytVal(column string) ([]byte, bool) {
 	v, ok := e.column[column]
 	if ok {
-		return v.BytVal, ok
+		return v.Bytes(), ok
 	}
 	return nil, ok
+}
+
+func (e esent_recordVal) Bytes() []byte {
+	return e.bytVal
 }
 
 func (e *Esent_record) StrVal(column string) (string, bool) {
 	v, ok := e.column[column]
 	if ok {
-		return v.StrVal, ok
+		return v.String(), ok
 	}
 	return "", ok
+}
+
+func (v esent_recordVal) String() string {
+	if v.codePage == 20127 { //ascii
+		//v easy
+		//record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(record.Column[column].BytVal)}
+		return string(v.bytVal)
+	} else if v.codePage == 1200 { //unicode oh boy
+		//unicode utf16le
+		d := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
+		b, err := d.Bytes(v.bytVal)
+		if err != nil {
+			panic(err)
+		}
+		return string(b)
+		//record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(b)}
+	} else if v.codePage == 1252 {
+		//fmt.Println("DO WESTERN!!", string(record.Column[column].BytVal))
+		d := charmap.Windows1252.NewDecoder()
+		b, err := d.Bytes(v.bytVal)
+		if err != nil {
+			panic(err)
+		}
+		return string(b)
+		//western... idk yet
+	} else {
+		fmt.Println("UNKNOWN STRING?")
+		panic("aa")
+	}
 }
 
 func (e *Esent_record) GetRecord(column string) (*esent_recordVal, bool) {
@@ -447,24 +463,25 @@ func (e *Esent_record) GetRecord(column string) (*esent_recordVal, bool) {
 //alternative way of doing this (and probably better) would be casting everything back
 //to a byte array that can be cleanly printed.
 type esent_recordVal struct {
-	TupVal [][]byte
-	BytVal []byte
-	StrVal string
-	Typ    string
+	tupVal [][]byte
+	bytVal []byte
+	//strVal   string
+	codePage uint32
+	typ      string
 
-	Bit       bool
-	UnsByt    byte
-	Short     int16
-	Long      int32
-	Curr      uint64
-	IEEESingl float32
-	IEEEDoubl float64
-	DateTim   uint64
+	//bit       bool
+	//unsByt    byte
+	//short     int16
+	//long      int32
+	//curr      uint64
+	//iEEESingl float32
+	//iEEEDoubl float64
+	//dateTim   uint64
 	// nils for binary, text, longbin, longtext and slv?
-	UnsLng  uint32
-	LngLng  uint64
-	Guid    [16]byte
-	UnsShrt uint16
+	//unsLng  uint32
+	//lngLng  uint64
+	//guid    [16]byte
+	//unsShrt uint16
 	/*
 		Byt
 		Tup
@@ -496,110 +513,117 @@ func (e *esent_recordVal) UpdateBytVal(d []byte) {
 	if e == nil {
 		e = &esent_recordVal{}
 	}
-	e.Typ = "Byt"
-	e.BytVal = d
+	e.typ = "Byt"
+	e.bytVal = d
 }
 
 func (e esent_recordVal) GetType() string {
-	return e.Typ
+	return e.typ
 }
 
 func (r *esent_recordVal) UnpackInline(t uint32) {
-	if len(r.BytVal) < 1 {
+	if len(r.bytVal) < 1 {
 		return
 	}
 	switch t {
 	case JET_coltypNil:
-		r.Typ = "Nil"
+		r.typ = "Nil"
 	case JET_coltypBit:
-		r.Typ = "Bit"
+		r.typ = "Bit"
 	case JET_coltypUnsignedByte:
-		r.Typ = "UnsByt"
+		r.typ = "UnsByt"
 	case JET_coltypShort:
-		r.Typ = "Short"
+		r.typ = "Short"
 	case JET_coltypLong:
-		r.Typ = "Long"
+		r.typ = "Long"
 	case JET_coltypCurrency:
-		r.Typ = "Curr"
+		r.typ = "Curr"
 	case JET_coltypIEEESingle:
-		r.Typ = "IEEESingl"
+		r.typ = "IEEESingl"
 	case JET_coltypIEEEDouble:
-		r.Typ = "IEEEDoubl"
+		r.typ = "IEEEDoubl"
 	case JET_coltypDateTime:
-		r.Typ = "DateTim"
+		r.typ = "DateTim"
 	case JET_coltypBinary:
-		r.Typ = "Bin"
+		r.typ = "Bin"
 	case JET_coltypText:
-		r.Typ = "Txt"
+		r.typ = "Txt"
 	case JET_coltypLongBinary:
-		r.Typ = "LongBin"
+		r.typ = "LongBin"
 	case JET_coltypLongText:
-		r.Typ = "LongTxt"
+		r.typ = "LongTxt"
 	case JET_coltypSLV:
-		r.Typ = "SLV"
+		r.typ = "SLV"
 	case JET_coltypUnsignedLong:
-		r.Typ = "UnsLng"
+		r.typ = "UnsLng"
 	case JET_coltypLongLong:
-		r.Typ = "LngLng"
+		r.typ = "LngLng"
 	case JET_coltypGUID:
-		r.Typ = "GUID"
+		r.typ = "GUID"
 	case JET_coltypUnsignedShort:
-		r.Typ = "UnsShrt"
+		r.typ = "UnsShrt"
 	case JET_coltypMax:
-		r.Typ = "Max"
+		r.typ = "Max"
 	}
-	buf := bytes.NewReader(r.BytVal)
-	switch t {
-	case JET_coltypBit:
-		if r.BytVal[0] > 0 {
-			r.Bit = true
-		} else {
-			r.Bit = false
+	//buf := bytes.NewReader(r.BytVal)
+	/*
+		switch t {
+		case JET_coltypBit:
+			if r.BytVal[0] > 0 {
+				r.Bit = true
+			} else {
+				r.Bit = false
+			}
+		case JET_coltypUnsignedByte:
+			r.UnsByt = r.BytVal[0]
+		case JET_coltypShort:
+			r.Short = int16(binary.LittleEndian.Uint16(r.BytVal))
+			//binary.Read(buf, binary.LittleEndian, &r.Short)
+		case JET_coltypLong:
+			r.Long = int32(binary.LittleEndian.Uint32(r.BytVal))
+			//binary.Read(buf, binary.LittleEndian, &r.Long)
+		case JET_coltypCurrency:
+			r.Curr = binary.LittleEndian.Uint64(r.BytVal)
+			//binary.Read(buf, binary.LittleEndian, &r.Curr)
+		case JET_coltypIEEESingle:
+			//r.IEEESingl
+			//binary.Read(buf, binary.LittleEndian, &r.IEEESingl)
+		case JET_coltypIEEEDouble:
+			//binary.Read(buf, binary.LittleEndian, &r.IEEEDoubl)
+		case JET_coltypDateTime:
+			//binary.Read(buf, binary.LittleEndian, &r.DateTim)
+		case JET_coltypUnsignedLong:
+			//binary.Read(buf, binary.LittleEndian, &r.UnsLng)
+		case JET_coltypLongLong:
+			//binary.Read(buf, binary.LittleEndian, &r.LngLng)
+		case JET_coltypGUID:
+			//binary.Read(buf, binary.LittleEndian, &r.Guid)
+		case JET_coltypUnsignedShort:
+			//binary.Read(buf, binary.LittleEndian, &r.UnsShrt)
+		case JET_coltypBinary:
+			fallthrough
+		case JET_coltypText:
+			fallthrough
+		case JET_coltypLongBinary:
+			fallthrough
+		case JET_coltypLongText:
+			fallthrough
+		case JET_coltypSLV:
+			fallthrough
+		case JET_coltypNil:
+			fallthrough
+		case JET_coltypMax:
+			fallthrough
+		// 'None' length? just store it as a hex string ok ????
+		default:
+			//store as raw bytes here to avoid conversion overhead
+			//store as hex string here for legacy compatibility
+			//r.StrVal = hex.EncodeToString(data) // (removed during optimisations)
 		}
-	case JET_coltypUnsignedByte:
-		r.UnsByt = r.BytVal[0]
-	case JET_coltypShort:
-		binary.Read(buf, binary.LittleEndian, &r.Short)
-	case JET_coltypLong:
-		binary.Read(buf, binary.LittleEndian, &r.Long)
-	case JET_coltypCurrency:
-		binary.Read(buf, binary.LittleEndian, &r.Curr)
-	case JET_coltypIEEESingle:
-		binary.Read(buf, binary.LittleEndian, &r.IEEESingl)
-	case JET_coltypIEEEDouble:
-		binary.Read(buf, binary.LittleEndian, &r.IEEEDoubl)
-	case JET_coltypDateTime:
-		binary.Read(buf, binary.LittleEndian, &r.DateTim)
-	case JET_coltypUnsignedLong:
-		binary.Read(buf, binary.LittleEndian, &r.UnsLng)
-	case JET_coltypLongLong:
-		binary.Read(buf, binary.LittleEndian, &r.LngLng)
-	case JET_coltypGUID:
-		binary.Read(buf, binary.LittleEndian, &r.Guid)
-	case JET_coltypUnsignedShort:
-		binary.Read(buf, binary.LittleEndian, &r.UnsShrt)
-	case JET_coltypBinary:
-		fallthrough
-	case JET_coltypText:
-		fallthrough
-	case JET_coltypLongBinary:
-		fallthrough
-	case JET_coltypLongText:
-		fallthrough
-	case JET_coltypSLV:
-		fallthrough
-	case JET_coltypNil:
-		fallthrough
-	case JET_coltypMax:
-		fallthrough
-	// 'None' length? just store it as a hex string ok ????
-	default:
-		//store as raw bytes here to avoid conversion overhead
-		//store as hex string here for legacy compatibility
-		//r.StrVal = hex.EncodeToString(data) // (removed during optimisations)
-	}
+	*/
 }
 
+/*
 func (e esent_recordVal) Unpack(t uint32, data []byte) esent_recordVal {
 	r := esent_recordVal{}
 	if len(data) < 1 {
@@ -698,7 +722,7 @@ func (e esent_recordVal) Unpack(t uint32, data []byte) esent_recordVal {
 		//r.StrVal = hex.EncodeToString(data) // (removed during optimisations)
 	}
 	return r
-}
+} */
 
 type tag_item struct {
 	TaggedOffset uint16

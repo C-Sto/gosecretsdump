@@ -17,7 +17,7 @@ import (
 
 //New Creates a new dit dumper
 func New(system, ntds string) DitReader {
-
+	parallel := false
 	r := DitReader{
 		isRemote:           false,
 		history:            false,
@@ -33,13 +33,17 @@ func New(system, ntds string) DitReader {
 		systemHiveLocation: system,
 		ntdsFileLocation:   ntds,
 		db:                 esent.Esedb{}.Init(ntds),
-		userData:           make(chan DumpedHash, 100),
-		decryptWork:        make(chan esent.Esent_record, 100),
+		userData:           make(chan DumpedHash, 1000),
+		decryptWork:        make(chan esent.Esent_record, 1000),
 		cryptwg:            &sync.WaitGroup{},
 	}
 
-	for i := 0; i < runtime.NumCPU()-1; i++ {
-		go r.decryptWorker()
+	if parallel {
+		for i := 0; i < runtime.NumCPU()-1; i++ {
+			go r.decryptWorker()
+		}
+	} else {
+
 	}
 
 	r.cursor = r.db.OpenTable("datatable")
@@ -135,8 +139,15 @@ func (d *DitReader) Dump() error {
 					d.userData <- dh
 					//*/
 				///*
-				d.cryptwg.Add(1)
-				d.decryptWork <- record
+				//d.cryptwg.Add(1)
+				//d.decryptWork <- record
+				dh, err := d.DecryptRecord(record)
+				if err != nil {
+					fmt.Println("Coudln't decrypt record:", err.Error())
+					continue
+				}
+				d.userData <- dh
+				//d.cryptwg.Done()
 				//*/
 			}
 		}
