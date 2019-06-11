@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/md5"
 	"crypto/rc4"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"runtime"
@@ -40,8 +39,6 @@ func New(system, ntds string) DitReader {
 		for i := 0; i < runtime.NumCPU()-1; i++ {
 			go r.decryptWorker()
 		}
-	} else {
-
 	}
 
 	r.cursor = r.db.OpenTable("datatable")
@@ -156,6 +153,7 @@ func (d DitReader) PEK() [][]byte {
 	if len(d.pek) < 1 {
 		return d.getPek()
 	}
+
 	return d.pek
 }
 
@@ -208,7 +206,7 @@ func (d *DitReader) getPek() [][]byte {
 			for i := 0; i < len(decryptedPekList.DecryptedPek)/pekLen; i++ {
 				cursor := i * pekLen
 				pek := NewPekKey(decryptedPekList.DecryptedPek[cursor : cursor+pekLen])
-				fmt.Println("PEK found and decrypted:", hex.EncodeToString(pek.Key[:]))
+				//fmt.Println("PEK found and decrypted:", hex.EncodeToString(pek.Key[:]))
 				d.pek = append(d.pek, pek.Key[:])
 			}
 

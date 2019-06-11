@@ -64,8 +64,6 @@ func (e Esedb) Init(fn string) Esedb {
 		isRemote: false,
 	}
 
-	//read the file into memory
-
 	//'mount' the database (parse the file)
 	r.mountDb(fn)
 	return r
@@ -97,7 +95,7 @@ func (e *Esedb) OpenTable(s string) *Cursor {
 		var page esent_page
 		var done = false
 		for !done {
-			page = e.getPage(pageNum)
+			page, _ = e.getPage(pageNum)
 			if page.record.FirstAvailablePageTag <= 1 {
 				//no records
 				break
@@ -140,7 +138,7 @@ func (e *Esedb) parseCatalog(pagenum uint32) {
 	//parse all pages starting at pagenum, and add to the in-memory table
 
 	//get the page
-	page := e.getPage(pagenum)
+	page, _ := e.getPage(pagenum)
 
 	//parse the page
 	e.parsePage(page)
@@ -204,7 +202,7 @@ func (e *Esedb) GetNextRow(c *Cursor) (Esent_record, error) {
 			return Esent_record{}, err
 		}
 
-		c.CurrentPageData = e.getPage(page.record.NextPageNumber)
+		c.CurrentPageData, _ = e.getPage(page.record.NextPageNumber)
 		c.CurrentTag = 0
 		return e.GetNextRow(c) //lol recursion
 
@@ -238,9 +236,9 @@ func (e *Esedb) addLeaf(l esent_leaf_entry) {
 		///*
 		t := table{}
 		t.TableEntry = l
-		t.Columns = &OrderedMap_cat_entry{values: make(map[string]cat_entry)}                  // make(map[string]cat_entry)
-		t.Indexes = &OrderedMap_esent_leaf_entry{values: make(map[string]esent_leaf_entry)}    //make(map[string]esent_leaf_entry)
-		t.Longvalues = &OrderedMap_esent_leaf_entry{values: make(map[string]esent_leaf_entry)} //make(map[string]esent_leaf_entry)
+		t.Columns = &cat_entries{} // make(map[string]cat_entry)
+		//t.Indexes = &OrderedMap_esent_leaf_entry{values: make(map[string]esent_leaf_entry)}    //make(map[string]esent_leaf_entry)
+		//t.Longvalues = &OrderedMap_esent_leaf_entry{values: make(map[string]esent_leaf_entry)} //make(map[string]esent_leaf_entry)
 		//*/
 		//longvals
 		e.tables[string(itemName)] = t
@@ -269,19 +267,20 @@ func (e *Esedb) addLeaf(l esent_leaf_entry) {
 		//e.tables[e.currentTable].Indexes.Add(string(itemName), l)
 
 	} else if catEntry.Fixed.Type == CATALOG_TYPE_LONG_VALUE {
-
+		/* seems to not be needed
 		if e.tables[e.currentTable].Columns == nil {
 			return
 		}
+
 		lvLen := binary.LittleEndian.Uint16(l.EntryData[ddHeader.VariableSizeOffset:][:2])
 		lvName := []byte{}
 
 		if len(l.EntryData[ddHeader.VariableSizeOffset:]) > 7 {
 			lvName = l.EntryData[ddHeader.VariableSizeOffset:][7:][:lvLen]
 		}
-		e.tables[e.currentTable].Longvalues.Add(string(lvName), l)
+		//e.tables[e.currentTable].Longvalues.Add(string(lvName), l)
 		//e.tables[e.currentTable].AddData(string(lvName), l)
-
+		*/
 	} else {
 		panic("lol idk during add item??????")
 	}
@@ -358,13 +357,10 @@ func (e *Esedb) loadPages(fn string) {
 }
 
 //retreives a page of data from the file?
-func (e *Esedb) getPage(pageNum uint32) esent_page {
-	if len(e.db.pages) < 1 {
-		panic("NOO")
-	}
+func (e *Esedb) getPage(pageNum uint32) (esent_page, bool) {
 	//check cache
 	if e.db.pages[pageNum+1].cached {
-		return e.db.pages[pageNum+1]
+		return e.db.pages[pageNum+1], true
 	}
-	panic("MISS CACHE")
+	return esent_page{}, false
 }

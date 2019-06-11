@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/unicode"
@@ -18,9 +17,9 @@ type cat_entry struct {
 type table struct {
 	Name       string
 	TableEntry esent_leaf_entry
-	Columns    *OrderedMap_cat_entry        //map[string]cat_entry
-	Indexes    *OrderedMap_esent_leaf_entry //map[string]esent_leaf_entry
-	Longvalues *OrderedMap_esent_leaf_entry //map[string]esent_leaf_entry
+	Columns    *cat_entries //map[string]cat_entr
+	//Indexes    *OrderedMap_esent_leaf_entry //map[string]esent_leaf_entry
+	//Longvalues *OrderedMap_esent_leaf_entry //map[string]esent_leaf_entry
 	//data       map[string]interface{}
 	//columns    []string
 }
@@ -445,10 +444,8 @@ func (v esent_recordVal) String() string {
 		}
 		return string(b)
 		//western... idk yet
-	} else {
-		fmt.Println("UNKNOWN STRING?")
-		panic("aa")
 	}
+	return ""
 }
 
 func (e *Esent_record) GetRecord(column string) (*esent_recordVal, bool) {
@@ -627,17 +624,14 @@ func (t *taggedItems) Parse() {
 	}
 }
 
-type OrderedMap_cat_entry struct {
-	values map[string]cat_entry
+type cat_entries struct {
+	values []cat_entry
 	keys   []string
 }
 
-func (o *OrderedMap_cat_entry) Add(key string, value cat_entry) {
-	_, exists := o.values[key]
-	if !exists {
-		o.keys = append(o.keys, key)
-	}
-	o.values[key] = value
+func (o *cat_entries) Add(key string, value cat_entry) {
+	o.keys = append(o.keys, key)
+	o.values = append(o.values, value)
 }
 
 type OrderedMap_esent_leaf_entry struct {

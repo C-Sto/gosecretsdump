@@ -24,10 +24,9 @@ func (e *Esedb) tagToRecord(c *Cursor, tag []byte) Esent_record {
 	//tagLen := uint16(len(tag))
 	fixedSizeOffset := uint32(4) //len ddheader
 	vsOffset := ddHeader.VariableSizeOffset
-	columns := c.TableData.Columns
 
-	for _, column := range columns.keys {
-		cRecord := columns.values[column].Record
+	for i, column := range c.TableData.Columns.keys {
+		cRecord := c.TableData.Columns.values[i].Record
 		if cRecord.Fixed.Identifier <= uint32(ddHeader.LastFixedSize) {
 			record.UpdateBytVal(tag[fixedSizeOffset:][:cRecord.Columns.SpaceUsage], column)
 			fixedSizeOffset += cRecord.Columns.SpaceUsage
@@ -37,7 +36,6 @@ func (e *Esedb) tagToRecord(c *Cursor, tag []byte) Esent_record {
 			overtwofiddy(column, &record, &cRecord, &taggedI, &taggedItemsParsed, vDataBytesProcessed, vsOffset, tag, e.dbHeader.Version, e.dbHeader.FileFormatRevision, e.pageSize)
 		} else {
 			record.DeleteColumn(column)
-			//delete(record.Column, column) // record.Column[column] = nil
 		}
 
 		/*

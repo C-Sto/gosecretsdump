@@ -28,38 +28,36 @@ type SAMRUserProperties struct { /*
 	Properties        []SAMRUserProperty
 }
 
+func getAndMoveCursor(data []byte, curs *int, size int) []byte {
+	d := data[*curs : *curs+size]
+	*curs += size
+	return d
+}
+
 func NewSAMRUserProperties(data []byte) SAMRUserProperties {
 	r := SAMRUserProperties{}
-	lData := make([]byte, len(data)) //avoid mutate
-	copy(lData, data)
+	//	lData := make([]byte, len(data)) //avoid mutate
+	//	copy(lData, data)
+	curs := 0
 
-	r.Reserved1 = binary.LittleEndian.Uint32(lData[:4])
-	lData = lData[4:]
-	r.Length = binary.LittleEndian.Uint32(lData[:4])
-	lData = lData[4:]
-	r.Reserved2 = binary.LittleEndian.Uint16(lData[:2])
-	lData = lData[2:]
-	r.Reserved3 = binary.LittleEndian.Uint16(lData[:2])
-	lData = lData[2:]
-	copy(r.Reserved4[:], lData[:96])
-	lData = lData[96:]
-	r.PropertySignature = binary.LittleEndian.Uint16(lData[:2])
-	lData = lData[2:]
-	r.PropertyCount = binary.LittleEndian.Uint16(lData[:2])
-	lData = lData[2:]
+	r.Reserved1 = binary.LittleEndian.Uint32(getAndMoveCursor(data, &curs, 4))
+	r.Length = binary.LittleEndian.Uint32(getAndMoveCursor(data, &curs, 4))
+	r.Reserved2 = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
+	r.Reserved3 = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
+	copy(r.Reserved4[:], data[curs:curs+96])
+	curs += 96
+	r.PropertySignature = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
+	r.PropertyCount = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
 	//fill properties
 	for i := uint16(0); i < r.PropertyCount; i++ {
 		np := SAMRUserProperty{}
-		np.NameLength = binary.LittleEndian.Uint16(lData[:2])
-		lData = lData[2:]
-		np.ValueLength = binary.LittleEndian.Uint16(lData[:2])
-		lData = lData[2:]
-		np.Reserved = binary.LittleEndian.Uint16(lData[:2])
-		lData = lData[2:]
-		np.PropertyName = lData[:np.NameLength]
-		lData = lData[np.NameLength:]
-		np.PropertyValue = lData[:np.ValueLength]
-		lData = lData[np.ValueLength:]
+		np.NameLength = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
+		np.ValueLength = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
+		np.Reserved = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
+		np.PropertyName = data[curs : curs+int(np.NameLength)]
+		curs += int(np.NameLength)
+		np.PropertyValue = data[curs : curs+int(np.ValueLength)]
+		curs += int(np.ValueLength)
 		r.Properties = append(r.Properties, np)
 	}
 	return r
