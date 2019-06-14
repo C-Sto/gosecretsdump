@@ -31,6 +31,7 @@ func TestProgram(t *testing.T) {
 }
 
 func BenchmarkProgram(t *testing.B) {
+	t.ReportAllocs()
 	for i := 0; i < t.N; i++ {
 		dr := ditreader.New("../system", "../ntds.dit")
 		//dr := ditreader.New("../big/registry/SYSTEM", "../big/Active Directory/ntds.dit")

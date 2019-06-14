@@ -57,7 +57,7 @@ func transformKey(inKey []byte) []byte {
 	outKey = append(outKey, ((inKey[4]&0x1f)<<2)|inKey[5]>>6)
 	outKey = append(outKey, ((inKey[5]&0x3f)<<1)|inKey[6]>>7)
 	outKey = append(outKey, inKey[6]&0x7f)
-	for i := range outKey {
+	for i := 0; i < 8; i++ {
 		outKey[i] = (outKey[i] << 1) & 0xfe
 	}
 	return outKey
@@ -79,15 +79,13 @@ func (d DitReader) removeRC4(c CryptedHash) []byte {
 
 //NewCryptedHash creates a CryptedHash object containing key material and encrypted content.
 func NewCryptedHash(inData []byte) CryptedHash {
-	data := make([]byte, len(inData))
-	copy(data, inData)
+	cursor := 0
 	r := CryptedHash{}
-	copy(r.Header[:], data[:8])
-	data = data[8:]
-	copy(r.KeyMaterial[:], data[:16])
-	data = data[16:]
-	r.EncryptedHash = make([]byte, len(data))
-	copy(r.EncryptedHash[:], data[:])
+	copy(r.Header[:], inData[:8])
+	cursor += 8
+	copy(r.KeyMaterial[:], inData[cursor:cursor+16])
+	cursor += 16
+	r.EncryptedHash = inData[cursor:]
 	return r
 }
 

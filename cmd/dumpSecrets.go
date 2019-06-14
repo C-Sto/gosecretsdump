@@ -23,6 +23,7 @@ func GoSecretsDump(s Settings) {
 	//handle any output
 	dataChan := dr.GetOutChan()
 	if s.Outfile != "" {
+		fmt.Println("Writing to file ", s.Outfile)
 		if s.Stream {
 			fileStreamWriter(dataChan, s)
 		} else {
@@ -102,7 +103,7 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
 			plaintext.WriteString(pts.String())
 		}
 		hashes.WriteString(hs.String())
-		fmt.Print(hs.String() + pts.String())
+		//fmt.Print(hs.String() + pts.String())
 	}
 
 	file, err := os.OpenFile(s.Outfile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)

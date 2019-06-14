@@ -215,50 +215,41 @@ type esent_catalog_data_definition_entry struct {
 }
 
 func (e esent_catalog_data_definition_entry) Init(inData []byte) (esent_catalog_data_definition_entry, error) {
-
-	data := make([]byte, len(inData))
-	copy(data, inData)
-
+	curs := 0
 	r := esent_catalog_data_definition_entry{}
 	//fill in fixed
-	buffer := bytes.NewBuffer(data[:10])
+	buffer := bytes.NewBuffer(getAndMoveCursor(inData, &curs, 10))
 	err := binary.Read(buffer, binary.LittleEndian, &r.Fixed)
 	if err != nil {
 		panic(err)
 	}
-	data = data[10:]
 
 	//this is where it gets hairy :(
 	if r.Fixed.Type == CATALOG_TYPE_COLUMN {
 		//only one with no 'other' section
 		//fill in column stuff
-		buffer := bytes.NewBuffer(data[:16])
+		buffer := bytes.NewBuffer(getAndMoveCursor(inData, &curs, 16))
 		err := binary.Read(buffer, binary.LittleEndian, &r.Columns)
 		if err != nil {
 			panic(err)
 		}
-		data = data[16:]
 	} else {
 
 		//fill in 'other'
-		r.Other.FatherDataPageNumber = binary.LittleEndian.Uint32(data[:4])
-		data = data[4:]
+		r.Other.FatherDataPageNumber = binary.LittleEndian.Uint32(getAndMoveCursor(inData, &curs, 4))
 
 		if r.Fixed.Type == CATALOG_TYPE_TABLE {
 			//do 'table stuff'
-			r.Table.SpaceUsage = binary.LittleEndian.Uint32(data[:4])
-			data = data[4:]
+			r.Table.SpaceUsage = binary.LittleEndian.Uint32(getAndMoveCursor(inData, &curs, 4))
 		} else if r.Fixed.Type == CATALOG_TYPE_INDEX {
 			//index stuff
-			buffer := bytes.NewBuffer(data[:12])
+			buffer := bytes.NewBuffer(getAndMoveCursor(inData, &curs, 12))
 			err := binary.Read(buffer, binary.LittleEndian, &r.Index)
 			if err != nil {
 				panic(err)
 			}
-			data = data[12:]
 		} else if r.Fixed.Type == CATALOG_TYPE_LONG_VALUE {
-			r.LV.SpaceUsage = binary.LittleEndian.Uint32(data[:4])
-			data = data[4:]
+			r.LV.SpaceUsage = binary.LittleEndian.Uint32(getAndMoveCursor(inData, &curs, 4))
 		} else if r.Fixed.Type == CATALOG_TYPE_CALLBACK {
 			panic("lol no")
 		} else {
@@ -266,9 +257,15 @@ func (e esent_catalog_data_definition_entry) Init(inData []byte) (esent_catalog_
 		}
 	}
 	//fill in common stuff
-	r.Common.Trailing = data[:]
+	r.Common.Trailing = inData[curs:]
 
 	return r, nil
+}
+
+func getAndMoveCursor(data []byte, curs *int, size int) []byte {
+	d := data[*curs : *curs+size]
+	*curs += size
+	return d
 }
 
 type fixed_catalog_data_definition_entry struct {
@@ -318,8 +315,8 @@ type cursorTable struct {
 type Cursor struct {
 	CurrentTag           uint32
 	FatherDataPageNumber uint32
-	CurrentPageData      esent_page
-	TableData            table
+	CurrentPageData      *esent_page
+	TableData            *table
 }
 
 type Esent_record struct {
@@ -330,19 +327,14 @@ func NewRecord(i int) Esent_record {
 	return Esent_record{column: make(map[string]*esent_recordVal, i)}
 }
 
-func (e *Esent_record) DeleteColumn(c string) {
-	//delete(e.column, c)
+func (r *Esent_record) NewVal(column string) *esent_recordVal {
+	v := &esent_recordVal{}
+	r.column[column] = v
+	return v
 }
 
-func (e *Esent_record) ConvTup(c string) {
-	r := e.column[c]
-	if r == nil {
-		//e.column[c] = &esent_recordVal{}
-		return
-	}
-	if r.GetType() == Tup {
-		r.ConvTup()
-	}
+func (e *Esent_record) DeleteColumn(c string) {
+	//delete(e.column, c)
 }
 
 func (e *esent_recordVal) ConvTup() {
@@ -350,7 +342,7 @@ func (e *esent_recordVal) ConvTup() {
 	e.typ = Byt
 }
 
-func (e *Esent_record) UnpackInline(column string, t uint32) {
+func (e *Esent_record) UnpackInline(column string, t columns_catalog_data_definition_entry) {
 	r := e.column[column]
 	if r == nil {
 		//e.column[column] = &esent_recordVal{}
@@ -386,12 +378,13 @@ func (e *Esent_record) UpdateBytVal(b []byte, column string) {
 	if _, ok := e.column[column]; !ok {
 		e.column[column] = &esent_recordVal{}
 	}
+	//fmt.Println("column", e.column[column].val)
 	e.column[column].UpdateBytVal(b)
 }
 
 func (e *Esent_record) GetLongVal(column string) (int32, bool) {
 	v, ok := e.column[column]
-	if ok {
+	if v != nil && ok {
 		return v.Long(), ok
 	}
 	return 0, ok
@@ -421,6 +414,8 @@ func (e *Esent_record) StrVal(column string) (string, bool) {
 	return "", ok
 }
 
+var d = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
+
 func (v esent_recordVal) String() string {
 	if v.codePage == 20127 { //ascii
 		//v easy
@@ -428,7 +423,7 @@ func (v esent_recordVal) String() string {
 		return string(v.val)
 	} else if v.codePage == 1200 { //unicode oh boy
 		//unicode utf16le
-		d := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
+
 		b, err := d.Bytes(v.val)
 		if err != nil {
 			panic(err)
@@ -448,12 +443,22 @@ func (v esent_recordVal) String() string {
 	return ""
 }
 
-func (e *Esent_record) GetRecord(column string) (*esent_recordVal, bool) {
-	v, ok := e.column[column]
-	if ok {
-		return v, ok
+func (e *Esent_record) GetRecord(column string) *esent_recordVal {
+	if r, ok := e.column[column]; ok {
+		return r
 	}
-	return nil, ok
+	r := &esent_recordVal{}
+	e.column[column] = r
+	return r
+}
+
+func (e *Esent_record) GetNilRecord(column string) *esent_recordVal {
+	if v, ok := e.column[column]; !ok {
+		//e.column[column] = &esent_recordVal{}
+		return nil
+	} else {
+		return v
+	}
 }
 
 //alternative way of doing this (and probably better) would be casting everything back
@@ -533,19 +538,21 @@ const (
 
 type recordTyp int
 
-func (e *esent_recordVal) UpdateBytVal(d []byte) {
-	if e == nil {
-		e = &esent_recordVal{}
-	}
+func (e *esent_recordVal) UpdateBytVal(d []byte) *esent_recordVal {
 	e.typ = Byt
+	//fmt.Println("record", d)
 	e.val = d
+	return e
 }
 
 func (e esent_recordVal) GetType() recordTyp {
 	return e.typ
 }
 
-func (r *esent_recordVal) UnpackInline(t uint32) {
+func (r *esent_recordVal) UnpackInline(c columns_catalog_data_definition_entry) {
+	//if cRecord.Columns.ColumnType == JET_coltypText || cRecord.Columns.ColumnType == JET_coltypLongText {
+	//record.SetString(column, cRecord.Columns.CodePage)
+	t := c.ColumnType
 	if len(r.val) < 1 {
 		return
 	}
@@ -572,10 +579,12 @@ func (r *esent_recordVal) UnpackInline(t uint32) {
 		r.typ = Bin
 	case JET_coltypText:
 		r.typ = Txt
+		r.SetString(c.CodePage)
 	case JET_coltypLongBinary:
 		r.typ = LongBin
 	case JET_coltypLongText:
 		r.typ = LongTxt
+		r.SetString(c.CodePage)
 	case JET_coltypSLV:
 		r.typ = SLV
 	case JET_coltypUnsignedLong:
@@ -599,29 +608,15 @@ type tag_item struct {
 
 type taggedItems struct {
 	//all of the tagged items
-	M map[uint16]tag_item
+	M []*tag_item
 	O []uint16
 }
 
-func (t *taggedItems) Add(tag tag_item, k uint16) {
+func (t *taggedItems) Add(tag *tag_item, k uint16) {
 	//NOT THREAD SAFE
 	t.O = append(t.O, k)
-	t.M[k] = tag
-}
-
-func (t *taggedItems) Parse() {
-	prevKey := t.O[0]
-
-	for i := 1; i < len(t.O); i++ {
-		vals0 := t.M[prevKey]
-		vals := t.M[t.O[i]]
-		t.M[prevKey] = tag_item{
-			TaggedOffset: vals0.TaggedOffset,
-			TagLen:       vals.TaggedOffset - vals0.TaggedOffset,
-			Flags:        vals0.Flags,
-		}
-		prevKey = t.O[i]
-	}
+	t.M = append(t.M, tag)
+	//t.M[k] = &tag
 }
 
 type cat_entries struct {

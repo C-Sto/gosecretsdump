@@ -10,22 +10,22 @@ type esent_page struct {
 	data     []byte
 	record   esent_page_header
 	cached   bool
+	reads    uint64
 }
 
-func (p esent_page) getData(start, size int) []byte {
+func (p esent_page) getData(start uint16, size int) []byte {
 	//so that I can brain the pythonic indexing stuff
 	//-1 in size indicates 'to the end'
 	//negative start means 'len(data)+start'
-	if start < 0 {
-		start = len(p.data) + start
-	}
+	//fmt.Println(-4 * int(p.record.FirstAvailablePageTag))
+	s := len(p.data) - int(start*4)
 
 	if size == -1 {
-		size = len(p.data) - start
+		return p.data[s:] // size = len(p.data) - start
 	}
-	o := make([]byte, size)
-	copy(o, p.data[start:start+size])
-	return o
+	//o := make([]byte, size)
+	//copy(o, p.data[start:start+size])
+	return p.data[s : int(start)+size]
 }
 
 func (p *esent_page) getHeader() {
@@ -98,28 +98,20 @@ func (p *esent_page) getTag(i int) (pageFlags uint16, tagData []byte) {
 	if int(p.record.FirstAvailablePageTag) < i {
 		panic("trying to grab tag??? 0x" + string(i))
 	}
-	baseOffset := p.record.Len
 	//len(self.record) calls __len()__ on a Structure object, which just returns len(self.data).
 	//I manually (print/echo debugging ftw) looked at the structures to work it out,
 	//because doing len on a structure to work out how big it is is pita. It's 40, unless extended pagesize.
 
 	//the tags are 4 bytes each, seek to the first avail pagetag and drop the data before the tag
-	tags := p.getData(-4*int(p.record.FirstAvailablePageTag), -1)
-
-	//we are only interested in a single tag (which appears to be specified from the end of the data structure?)
-	// drop everyhing we don't care about
-	for x := 0; x < i; x++ {
-		tags = tags[:len(tags)-4]
-	}
-	//the tag should now be the last 4 bytes
-	tag := tags[len(tags)-4:] //this can probably be unrolled and one-lined
+	startIndex := len(p.data) - int(4*(i+1))
+	tag := p.data[startIndex : startIndex+4]
 
 	valsize := binary.LittleEndian.Uint16(tag[:2]) & 0x1fff
 	pageFlags = (binary.LittleEndian.Uint16(tag[2:]) & 0xe000) >> 13
 	valueOffset := binary.LittleEndian.Uint16(tag[2:]) & 0x1fff
 
-	tagData = make([]byte, len(p.data[baseOffset+valueOffset:][:valsize]))
-	copy(tagData, p.data[baseOffset+valueOffset:][:valsize])
+	tagData = make([]byte, len(p.data[p.record.Len+valueOffset:][:valsize]))
+	copy(tagData, p.data[p.record.Len+valueOffset:][:valsize])
 
 	return pageFlags, tagData
 }

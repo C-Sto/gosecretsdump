@@ -3,6 +3,7 @@ package ditreader
 import (
 	"encoding/binary"
 	"fmt"
+	"strings"
 )
 
 type SAMRUserProperties struct { /*
@@ -92,11 +93,13 @@ type SAMRRPCSID struct {
 }
 
 func (s SAMRRPCSID) FormatCanonical() string {
-	ans := fmt.Sprintf("S-%d-%d", s.Revision, s.IdentifierAuthority[5])
+	var ans strings.Builder
+
+	ans.WriteString(fmt.Sprintf("S-%d-%d", s.Revision, s.IdentifierAuthority[5]))
 	for i := 0; i < int(s.SubAuthorityCount); i++ {
-		ans += fmt.Sprintf("-%d", binary.BigEndian.Uint32(s.SubAuthority[i*4:i*4+4]))
+		ans.WriteString(fmt.Sprintf("-%d", binary.BigEndian.Uint32(s.SubAuthority[i*4:i*4+4])))
 	}
-	return ans
+	return ans.String()
 }
 
 func NewSAMRRPCSID(data []byte) (SAMRRPCSID, error) {
@@ -104,16 +107,15 @@ func NewSAMRRPCSID(data []byte) (SAMRRPCSID, error) {
 	if len(data) < 6 {
 		return r, fmt.Errorf("Bad SAMR data: %s", string(data))
 	}
-	lData := make([]byte, len(data)) //avoid mutate
-	copy(lData, data)
+	curs := 0
 
-	r.Revision = lData[0]
-	r.SubAuthorityCount = lData[1]
-	lData = lData[2:]
-	copy(r.IdentifierAuthority[:], lData[:6])
-	lData = lData[6:]
+	r.Revision = data[0]
+	r.SubAuthorityCount = data[1]
+
+	getAndMoveCursor(data, &curs, 2)
+	copy(r.IdentifierAuthority[:], getAndMoveCursor(data, &curs, 6))
 	r.SubLen = int(r.SubAuthorityCount) * 4
-	r.SubAuthority = make([]byte, len(lData))
-	copy(r.SubAuthority, lData)
+	r.SubAuthority = make([]byte, len(data[curs:]))
+	copy(r.SubAuthority, data[curs:])
 	return r, nil
 }

@@ -32,7 +32,7 @@ func New(system, ntds string) DitReader {
 		systemHiveLocation: system,
 		ntdsFileLocation:   ntds,
 		db:                 esent.Esedb{}.Init(ntds),
-		userData:           make(chan DumpedHash, 5000),
+		userData:           make(chan DumpedHash, 500),
 	}
 
 	if parallel {
@@ -174,7 +174,7 @@ func (d *DitReader) getPek() [][]byte {
 			break
 		}
 
-		if _, ok := record.GetRecord(nsAMAccountType); ok {
+		if r := record.GetNilRecord(nsAMAccountType); r != nil {
 			//if _, ok := record.Column[sAMAccountType"]]; ok {
 			//users found?
 			d.tmpUsers = append(d.tmpUsers, record)

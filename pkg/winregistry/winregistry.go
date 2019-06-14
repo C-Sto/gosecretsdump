@@ -78,20 +78,15 @@ type regHbinBlock struct {
 }
 
 func (r regHbinBlock) Init(inData []byte) regHbinBlock {
-
-	data := make([]byte, len(inData))
-	copy(data, inData)
-
 	rv := regHbinBlock{}
-	rv.DataBlockSize = int32(binary.LittleEndian.Uint32(data[:4]))
+	rv.DataBlockSize = int32(binary.LittleEndian.Uint32(inData[:4]))
 	x := rv.DataBlockSize
 	if rv.DataBlockSize < 0 {
+		//make it positive again
 		x *= -1
 	}
-	if x > int32(len(data)) {
-		x = int32(len(data))
-	}
-	rv.Data = data[4:x]
+
+	rv.Data = inData[4:]
 	return rv
 }
 

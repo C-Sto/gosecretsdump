@@ -21,7 +21,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	dh.Rid = sid.FormatCanonical()[strings.LastIndex(sid.FormatCanonical(), "-")+1:]
 
 	//lm hash
-	if v, ok := record.StrVal(ndBCSPwd); ok && v != "" {
+	if v, ok := record.StrVal(ndBCSPwd); ok && len(v) > 0 {
 		//if record.Column[ndBCSPwd"]].StrVal != "" {
 		tmpLM := []byte{}
 		b, _ := record.GetBytVal(ndBCSPwd)
@@ -59,8 +59,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	//username
 	if v, ok := record.StrVal(nuserPrincipalName); ok && v != "" { //record.Column[nuserPrincipalName"]].StrVal; v != "" {
 		rec := v
-		recs := strings.Split(rec, "@")
-		domain := recs[len(recs)-1]
+		domain := rec[strings.LastIndex(rec, "@"):]
 		dh.Username = fmt.Sprintf("%s\\%s", domain, v)
 	} else {
 		v, _ := record.StrVal(nsAMAccountName)
