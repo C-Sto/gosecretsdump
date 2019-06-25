@@ -102,7 +102,7 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 		//check for windows 2016 tp4
 		if bytes.Compare(ct.Header[:4], []byte{0x13, 0, 0, 0}) == 0 {
 			//fmt.Println("TODO: WINDOWS 2016 SUPP DATA FOR PLAINTEXT")
-			pekIndex := binary.LittleEndian.Uint16(ct.Header[4:5])
+			pekIndex := binary.LittleEndian.Uint16(ct.Header[4:6])
 			plainBytes = decryptAES(d.pek[pekIndex],
 				ct.EncryptedHash[4:],
 				ct.KeyMaterial[:])
