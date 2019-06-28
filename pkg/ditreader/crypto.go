@@ -64,10 +64,7 @@ func transformKey(inKey []byte) []byte {
 }
 
 func (d DitReader) removeRC4(c CryptedHash) []byte {
-	tmpKeyh := md5.New()
-	tmpKeyh.Write(d.pek[int(c.Header[4])])
-	tmpKeyh.Write(c.KeyMaterial[:])
-	tmpKey := tmpKeyh.Sum(nil)
+	tmpKey := md5.Sum(append(d.pek[int(c.Header[4])], c.KeyMaterial[:]...))
 	lol, err := rc4.NewCipher(tmpKey[:])
 	if err != nil {
 		panic(err)
@@ -113,10 +110,10 @@ type CryptedHashW16 struct {
 	EncrypedHash [32]byte
 }
 
-func NewCryptedHashW16(inData []byte) CryptedHashW16 {
+func NewCryptedHashW16(data []byte) CryptedHashW16 {
 	r := CryptedHashW16{}
-	data := make([]byte, len(inData))
-	copy(data, inData)
+	//data := make([]byte, len(inData))
+	//copy(data, inData)
 	copy(r.Header[:], data[:8])
 	data = data[8:]
 	copy(r.KeyMaterial[:], data[:16])

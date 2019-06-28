@@ -13,6 +13,8 @@ type cat_entry struct {
 	esent_leaf_entry
 	Header esent_data_definition_header        //??
 	Record esent_catalog_data_definition_entry //??
+	Key    string
+	KeyInt int
 }
 type table struct {
 	Name       string
@@ -144,25 +146,28 @@ type esent_branch_entry struct {
 	ChildPageNumber  uint32
 }
 
-func (e esent_branch_entry) Init(flags uint16, ldata []byte) esent_branch_entry {
+func (e esent_branch_entry) Init(flags uint16, data []byte) esent_branch_entry {
 	r := esent_branch_entry{}
 	//zzzz
-	data := make([]byte, len(ldata))
-	copy(data, ldata)
+	//data := make([]byte, len(ldata))
+	//copy(data, ldata)
 	//take first 2 bytes of data if common flag is set
+	curs := 0
 	if flags&TAG_COMMON > 0 {
 		r.CommonPageKeySize = binary.LittleEndian.Uint16(data[:2])
-		data = data[2:]
+		//data = data[2:]
+		curs += 2
 	}
 	//fill the structure with remaining data
 	//first element is the pagekeysize
-	r.LocalPageKeySize = binary.LittleEndian.Uint16(data[:2])
-	data = data[2:]
+	r.LocalPageKeySize = binary.LittleEndian.Uint16(data[curs : curs+2])
+	curs += 2
 	//then the pagekey (determined by the pagekeysize)
-	r.LocalPageKey = data[:r.LocalPageKeySize]
-	data = data[r.LocalPageKeySize:]
+	r.LocalPageKey = data[curs : curs+int(r.LocalPageKeySize)]
+	curs += int(r.LocalPageKeySize)
+	//data = data[curs+r.LocalPageKeySize:]
 	//then we have the childpagenumber (this should be the rest of the data??)
-	r.ChildPageNumber = binary.LittleEndian.Uint32(data[:])
+	r.ChildPageNumber = binary.LittleEndian.Uint32(data[curs:])
 
 	return r
 }
@@ -178,23 +183,26 @@ type esent_leaf_entry struct {
 
 func (e esent_leaf_entry) Init(flags uint16, inData []byte) esent_leaf_entry {
 	r := esent_leaf_entry{}
-	data := make([]byte, len(inData))
+	curs := 0
+	//data := make([]byte, len(inData))
 
-	copy(data, inData)
+	//copy(data, inData)
 	//take first 2 bytes of data if common flag is set
 	if flags&TAG_COMMON > 0 {
-		r.CommonPageKeySize = binary.LittleEndian.Uint16(data[:2])
-		data = data[2:]
+		r.CommonPageKeySize = binary.LittleEndian.Uint16(inData[:2])
+		//data = data[2:]
+		curs += 2
 	}
 	//fill the structure with remaining data
 	//first element is the pagekeysize
-	r.LocalPageKeySize = binary.LittleEndian.Uint16(data[:2])
-	data = data[2:]
+	r.LocalPageKeySize = binary.LittleEndian.Uint16(inData[curs : curs+2])
+	curs += 2
 	//then the pagekey (determined by the pagekeysize)
-	r.LocalPageKey = data[:r.LocalPageKeySize]
-	data = data[r.LocalPageKeySize:]
+	r.LocalPageKey = inData[curs : curs+int(r.LocalPageKeySize)]
+	curs += int(r.LocalPageKeySize)
+	//data = data[r.LocalPageKeySize:]
 	//then we have the data (this should be the rest of the data??)
-	r.EntryData = data[:]
+	r.EntryData = inData[curs:]
 	return r
 }
 
@@ -621,11 +629,9 @@ func (t *taggedItems) Add(tag *tag_item, k uint16) {
 
 type cat_entries struct {
 	values []cat_entry
-	keys   []string
 }
 
-func (o *cat_entries) Add(key string, value cat_entry) {
-	o.keys = append(o.keys, key)
+func (o *cat_entries) Add(value cat_entry) {
 	o.values = append(o.values, value)
 }
 

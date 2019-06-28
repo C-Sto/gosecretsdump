@@ -110,8 +110,8 @@ func (p *esent_page) getTag(i int) (pageFlags uint16, tagData []byte) {
 	pageFlags = (binary.LittleEndian.Uint16(tag[2:]) & 0xe000) >> 13
 	valueOffset := binary.LittleEndian.Uint16(tag[2:]) & 0x1fff
 
-	tagData = make([]byte, len(p.data[p.record.Len+valueOffset:][:valsize]))
-	copy(tagData, p.data[p.record.Len+valueOffset:][:valsize])
+	tagData = p.data[p.record.Len+valueOffset:][:valsize]
+	//copy(tagData, p.data[p.record.Len+valueOffset:][:valsize])
 
 	return pageFlags, tagData
 }

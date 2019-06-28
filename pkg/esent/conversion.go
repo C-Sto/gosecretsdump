@@ -7,7 +7,7 @@ import (
 )
 
 func (e *Esedb) tagToRecord(c *Cursor, tag []byte) Esent_record {
-	record := NewRecord(len(c.TableData.Columns.keys))
+	record := NewRecord(len(c.TableData.Columns.values))
 	//record := Esent_record{Column: make(map[string]*esent_recordVal, len(c.TableData.Columns.keys))}
 	taggedI := taggedItems{}
 	taggedItemsParsed := false
@@ -24,11 +24,11 @@ func (e *Esedb) tagToRecord(c *Cursor, tag []byte) Esent_record {
 	//tagLen := uint16(len(tag))
 	fixedSizeOffset := uint32(4) //len ddheader
 	vsOffset := ddHeader.VariableSizeOffset
-	for i := 0; i < len(c.TableData.Columns.keys); i++ {
+	for i := 0; i < len(c.TableData.Columns.values); i++ {
 		var val *esent_recordVal
 		//for i, column := range c.TableData.Columns.keys {
 		cRecord := &c.TableData.Columns.values[i].Record
-		column := c.TableData.Columns.keys[i]
+		column := c.TableData.Columns.values[i].Key
 		//fmt.Println("VALB4", val, exists)
 		if cRecord.Fixed.Identifier <= uint32(ddHeader.LastFixedSize) {
 			if val == nil {

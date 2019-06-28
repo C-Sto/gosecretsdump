@@ -205,9 +205,8 @@ func (d *DitReader) getPek() [][]byte {
 			pekLen := 20 //len of the pek_key structure
 			for i := 0; i < len(decryptedPekList.DecryptedPek)/pekLen; i++ {
 				cursor := i * pekLen
-				pek := NewPekKey(decryptedPekList.DecryptedPek[cursor : cursor+pekLen])
 				//fmt.Println("PEK found and decrypted:", hex.EncodeToString(pek.Key[:]))
-				d.pek = append(d.pek, pek.Key[:])
+				d.pek = append(d.pek, NewPekKey(decryptedPekList.DecryptedPek[cursor:cursor+pekLen]))
 			}
 
 		} else if bytes.Compare(encryptedPekList.Header[:4], []byte("\x03\x00\x00\x00")) == 0 {

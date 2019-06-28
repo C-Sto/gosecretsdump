@@ -115,7 +115,7 @@ func NewSAMRRPCSID(data []byte) (SAMRRPCSID, error) {
 	getAndMoveCursor(data, &curs, 2)
 	copy(r.IdentifierAuthority[:], getAndMoveCursor(data, &curs, 6))
 	r.SubLen = int(r.SubAuthorityCount) * 4
-	r.SubAuthority = make([]byte, len(data[curs:]))
-	copy(r.SubAuthority, data[curs:])
+	r.SubAuthority = data[curs:] // make([]byte, len(data[curs:]))
+	//copy(r.SubAuthority, data[curs:])
 	return r, nil
 }

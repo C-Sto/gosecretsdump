@@ -222,9 +222,10 @@ func (e *Esedb) addLeaf(l esent_leaf_entry) {
 			},
 			Header: ddHeader,
 			Record: catEntry,
+			Key:    string(itemName),
 		}
 		//e.tables[e.currentTable].AddColumn(string(itemName))
-		e.tables[e.currentTable].Columns.Add(string(itemName), col)
+		e.tables[e.currentTable].Columns.Add(col)
 
 	} else if catEntry.Fixed.Type == CATALOG_TYPE_INDEX {
 

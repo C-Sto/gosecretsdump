@@ -14,11 +14,13 @@ import (
 type SystemReader struct {
 	systemLoc string
 	bootKey   []byte
+	registry  winregistry.WinregRegistry
 }
 
 //New creates a new SystemReader pointing at the specified file.
 func New(s string) SystemReader {
 	r := SystemReader{systemLoc: s}
+	r.registry = winregistry.WinregRegistry{}.Init(s, false)
 	return r
 }
 
@@ -33,16 +35,16 @@ func (l SystemReader) BootKey() []byte {
 func (l *SystemReader) getBootKey() {
 	bk := []byte{}
 	tmpKey := ""
-	winreg := winregistry.WinregRegistry{}.Init(l.systemLoc, false)
+	//winreg := winregistry.WinregRegistry{}.Init(l.systemLoc, false)
 	//get control set
-	_, bcurrentControlset, err := winreg.GetVal("\\Select\\Current")
+	_, bcurrentControlset, err := l.registry.GetVal("\\Select\\Current")
 	if err != nil {
 		panic(err)
 	}
 
 	currentControlset := fmt.Sprintf("ControlSet%03d", binary.LittleEndian.Uint32(bcurrentControlset))
 	for _, k := range []string{"JD", "Skew1", "GBG", "Data"} {
-		ans := winreg.GetClass(fmt.Sprintf("\\%s\\Control\\Lsa\\%s", currentControlset, k))
+		ans := l.registry.GetClass(fmt.Sprintf("\\%s\\Control\\Lsa\\%s", currentControlset, k))
 		ud := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
 		nansLen := 16
 		if len(ans) < 16 {
@@ -66,13 +68,13 @@ func (l *SystemReader) getBootKey() {
 
 //HasNoLMHashPolicy returns true if no LM hashes are allowed per the SYSTEM file. A False response indicates that LM hashes may exist within the domain/machine.
 func (l SystemReader) HasNoLMHashPolicy() bool {
-	winreg := winregistry.WinregRegistry{}.Init(l.systemLoc, false)
-	_, bcurrentControlSet, err := winreg.GetVal("\\Select\\Current")
+	//winreg := winregistry.WinregRegistry{}.Init(l.systemLoc, false)
+	_, bcurrentControlSet, err := l.registry.GetVal("\\Select\\Current")
 	if err != nil {
 		fmt.Println("ERROR GETTING CONTROL SET FOR LM HASH", err)
 	}
 	currentControlSet := fmt.Sprintf("ControlSet%03d", binary.LittleEndian.Uint32(bcurrentControlSet))
-	_, _, err = winreg.GetVal(fmt.Sprintf("\\%s\\Control\\Lsa\\NoLmHash", currentControlSet))
+	_, _, err = l.registry.GetVal(fmt.Sprintf("\\%s\\Control\\Lsa\\NoLmHash", currentControlSet))
 	if err != nil && err.Error() == winregistry.NONE {
 		//yee got some LM HASHES life is gonna be GOOD
 		return false
