@@ -57,10 +57,10 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	}
 
 	//username
-	if v, ok := record.StrVal(nuserPrincipalName); ok && v != "" { //record.Column[nuserPrincipalName"]].StrVal; v != "" {
+	if v, ok := record.StrVal(nuserPrincipalName); ok && v != "" && strings.Contains(v, "@") { //record.Column[nuserPrincipalName"]].StrVal; v != "" {
 		rec := v
-		domain := rec[strings.LastIndex(rec, "@"):]
-		dh.Username = fmt.Sprintf("%s\\%s", domain, v)
+		domain := rec[strings.LastIndex(rec, "@")+1:]
+		dh.Username = fmt.Sprintf("%s\\%s", domain, v[:strings.LastIndex(rec, "@")])
 	} else {
 		v, _ := record.StrVal(nsAMAccountName)
 		dh.Username = fmt.Sprintf("%s", v)

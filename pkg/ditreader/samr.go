@@ -48,18 +48,20 @@ func NewSAMRUserProperties(data []byte) SAMRUserProperties {
 	copy(r.Reserved4[:], data[curs:curs+96])
 	curs += 96
 	r.PropertySignature = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
-	r.PropertyCount = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
-	//fill properties
-	for i := uint16(0); i < r.PropertyCount; i++ {
-		np := SAMRUserProperty{}
-		np.NameLength = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
-		np.ValueLength = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
-		np.Reserved = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
-		np.PropertyName = data[curs : curs+int(np.NameLength)]
-		curs += int(np.NameLength)
-		np.PropertyValue = data[curs : curs+int(np.ValueLength)]
-		curs += int(np.ValueLength)
-		r.Properties = append(r.Properties, np)
+	if len(data) > curs+2 {
+		r.PropertyCount = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
+		//fill properties
+		for i := uint16(0); i < r.PropertyCount; i++ {
+			np := SAMRUserProperty{}
+			np.NameLength = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
+			np.ValueLength = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
+			np.Reserved = binary.LittleEndian.Uint16(getAndMoveCursor(data, &curs, 2))
+			np.PropertyName = data[curs : curs+int(np.NameLength)]
+			curs += int(np.NameLength)
+			np.PropertyValue = data[curs : curs+int(np.ValueLength)]
+			curs += int(np.ValueLength)
+			r.Properties = append(r.Properties, np)
+		}
 	}
 	return r
 }

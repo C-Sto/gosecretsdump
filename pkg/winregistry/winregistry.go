@@ -455,7 +455,6 @@ func (w WinregRegistry) getValBlocks(offset, count uint32) []reg_blockStruct {
 			res = append(res, block)
 		}
 	}
-
 	return res
 }
 
