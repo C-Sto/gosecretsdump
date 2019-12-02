@@ -177,7 +177,7 @@ func (e *Esedb) GetNextRow(c *Cursor) (Esent_record, error) {
 
 	flags, data := page.getTag(int(c.CurrentTag))
 	tag := esent_leaf_entry{}.Init(flags, data)
-	return e.tagToRecord(c, tag.EntryData), nil
+	return e.tagToRecord(c, tag.EntryData)
 }
 
 func (e *Esedb) addLeaf(l esent_leaf_entry) {

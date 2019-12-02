@@ -114,7 +114,11 @@ func (d *DitReader) Dump() error {
 		//read each record from the db
 		record, err := d.db.GetNextRow(d.cursor)
 		if err != nil {
-			break //we will get an 'ignore' error when there are no more records
+			if err.Error() == "ignore" {
+				break //we will get an 'ignore' error when there are no more records
+			}
+			fmt.Println("Couldn't get row due to error: ", err.Error())
+			continue
 		}
 
 		//check for the right kind of record

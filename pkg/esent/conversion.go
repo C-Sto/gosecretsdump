@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 )
 
-func (e *Esedb) tagToRecord(c *Cursor, tag []byte) Esent_record {
+func (e *Esedb) tagToRecord(c *Cursor, tag []byte) (Esent_record, error) {
 	record := NewRecord(len(c.TableData.Columns.values))
 	//record := Esent_record{Column: make(map[string]*esent_recordVal, len(c.TableData.Columns.keys))}
 	taggedI := taggedItems{}
@@ -16,7 +17,7 @@ func (e *Esedb) tagToRecord(c *Cursor, tag []byte) Esent_record {
 	buffer := bytes.NewBuffer(tag)
 	err := binary.Read(buffer, binary.LittleEndian, &ddHeader)
 	if err != nil {
-		panic(err)
+		return record, fmt.Errorf("Bad read, input data: %+v\nerror message:%s", buffer, err.Error())
 	}
 
 	vDataBytesProcessed := (ddHeader.LastVariableDataType - 127) * 2
@@ -128,7 +129,7 @@ func (e *Esedb) tagToRecord(c *Cursor, tag []byte) Esent_record {
 		//panic("cats")
 
 	}
-	return record
+	return record, nil
 }
 
 func parseTaggedItems(vDataBytesProcessed uint8, vsOffset uint16, tag []byte, version, rev, pageSize uint32, taggedI *taggedItems, taggedItemsParsed *bool, ident uint16, crecordItem *tag_item, ok *bool) {
