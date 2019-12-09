@@ -15,7 +15,7 @@ import (
 )
 
 //New Creates a new dit dumper
-func New(system, ntds string) DitReader {
+func New(system, ntds string) (DitReader, error) {
 	parallel := false
 	r := DitReader{
 		isRemote:           false,
@@ -40,11 +40,14 @@ func New(system, ntds string) DitReader {
 			go r.decryptWorker()
 		}
 	}
-
-	r.cursor = r.db.OpenTable("datatable")
+	var err error
+	r.cursor, err = r.db.OpenTable("datatable")
+	if err != nil {
+		return r, err
+	}
 	go r.dump() //start dumping the file immediately output will be put into the output channel as it comes
 
-	return r
+	return r, err
 }
 
 type DitReader struct {
@@ -107,7 +110,7 @@ func (d *DitReader) Dump() error {
 
 	d.getPek()
 	if len(d.pek) < 1 {
-		panic("NO PEK FOUND THIS IS VERY BAD")
+		return fmt.Errorf("NO PEK FOUND THIS IS VERY BAD")
 	}
 
 	for {
@@ -153,20 +156,20 @@ func (d *DitReader) decryptWorker() {
 	}
 }
 
-func (d DitReader) PEK() [][]byte {
+func (d DitReader) PEK() ([][]byte, error) {
 	if len(d.pek) < 1 {
 		return d.getPek()
 	}
 
-	return d.pek
+	return d.pek, nil
 }
 
-func (d *DitReader) getPek() [][]byte {
+func (d *DitReader) getPek() ([][]byte, error) {
 	pekList := []byte{}
 	for {
 		record, err := d.db.GetNextRow(d.cursor)
 		if err != nil && err.Error() != "ignore" {
-			panic(err) //todo: remove all panics and handle errors properly
+			return nil, err
 		}
 		if err != nil && err.Error() == "ignore" {
 			break //lol fml
@@ -189,7 +192,7 @@ func (d *DitReader) getPek() [][]byte {
 		encryptedPekList, err := NewPeklistEnc(pekList)
 		if err != nil {
 			//should probably hard fail here
-			panic(err)
+			return nil, err
 		}
 		if bytes.Compare(encryptedPekList.Header[:4], []byte{2, 0, 0, 0}) == 0 {
 			//up to windows 2012 r2 something something
@@ -201,7 +204,7 @@ func (d *DitReader) getPek() [][]byte {
 			tmpKey := md.Sum([]byte{})
 			rc, err := rc4.NewCipher(tmpKey)
 			if err != nil {
-				panic(err)
+				return nil, err
 			}
 			dst := make([]byte, len(encryptedPekList.EncryptedPek))
 			rc.XORKeyStream(dst, encryptedPekList.EncryptedPek)
@@ -223,10 +226,13 @@ func (d *DitReader) getPek() [][]byte {
 				# CipherText: PEKLIST_ENC['EncryptedPek']
 				# IV: PEKLIST_ENC['KeyMaterial']
 			*/
-			ePek := decryptAES(d.bootKey, encryptedPekList.EncryptedPek, encryptedPekList.KeyMaterial[:])
+			ePek, err := decryptAES(d.bootKey, encryptedPekList.EncryptedPek, encryptedPekList.KeyMaterial[:])
+			if err != nil {
+				return nil, err
+			}
 			decryptedPekList := NewPeklistPlain(ePek)
 			d.pek = append(d.pek, decryptedPekList.DecryptedPek[4:20])
 		}
 	}
-	return d.pek
+	return d.pek, nil
 }

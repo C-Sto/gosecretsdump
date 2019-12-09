@@ -25,15 +25,27 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		//if record.Column[ndBCSPwd"]].StrVal != "" {
 		tmpLM := []byte{}
 		b, _ := record.GetBytVal(ndBCSPwd)
-		encryptedLM := NewCryptedHash(b)
+		encryptedLM, err := NewCryptedHash(b)
+		if err != nil {
+			return dh, err
+		}
 		if bytes.Compare(encryptedLM.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
 			encryptedLMW := NewCryptedHashW16(b)
 			pekIndex := encryptedLMW.Header
-			tmpLM = decryptAES(d.pek[pekIndex[4]], encryptedLMW.EncrypedHash[:16], encryptedLMW.KeyMaterial[:])
+			tmpLM, err = decryptAES(d.pek[pekIndex[4]], encryptedLMW.EncrypedHash[:16], encryptedLMW.KeyMaterial[:])
+			if err != nil {
+				return dh, err
+			}
 		} else {
-			tmpLM = d.removeRC4(encryptedLM)
+			tmpLM, err = d.removeRC4(encryptedLM)
+			if err != nil {
+				return dh, err
+			}
 		}
-		dh.LMHash = removeDES(tmpLM, dh.Rid)
+		dh.LMHash, err = removeDES(tmpLM, dh.Rid)
+		if err != nil {
+			return dh, err
+		}
 	} else {
 		//hard coded empty lm hash
 		dh.LMHash, _ = hex.DecodeString("aad3b435b51404eeaad3b435b51404ee")
@@ -42,15 +54,27 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	//nt hash
 	if v, _ := record.GetBytVal(nunicodePwd); len(v) > 0 { //  record.Column[nunicodePwd"]].BytVal; len(v) > 0 {
 		tmpNT := []byte{}
-		encryptedNT := NewCryptedHash(v)
+		encryptedNT, err := NewCryptedHash(v)
+		if err != nil {
+			return dh, err
+		}
 		if bytes.Compare(encryptedNT.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
 			encryptedNTW := NewCryptedHashW16(v)
 			pekIndex := encryptedNTW.Header
-			tmpNT = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncrypedHash[:16], encryptedNTW.KeyMaterial[:])
+			tmpNT, err = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncrypedHash[:16], encryptedNTW.KeyMaterial[:])
+			if err != nil {
+				return dh, err
+			}
 		} else {
-			tmpNT = d.removeRC4(encryptedNT)
+			tmpNT, err = d.removeRC4(encryptedNT)
+			if err != nil {
+				return dh, err
+			}
 		}
-		dh.NTHash = removeDES(tmpNT, dh.Rid)
+		dh.NTHash, err = removeDES(tmpNT, dh.Rid)
+		if err != nil {
+			return dh, err
+		}
 	} else {
 		//hard coded empty NTLM hash
 		dh.NTHash, _ = hex.DecodeString("31D6CFE0D16AE931B73C59D7E0C089C0")
@@ -96,18 +120,27 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 			username = fmt.Sprintf("%s\\%s", domain, username)
 		}
 		//fmt.Println(val.BytVal)
-		ct := NewCryptedHash(bval)
+		ct, err := NewCryptedHash(bval)
+		if err != nil {
+			return r, err
+		}
 		//ct := crypted_hash{}.Init(val.BytVal)
 
 		//check for windows 2016 tp4
 		if bytes.Compare(ct.Header[:4], []byte{0x13, 0, 0, 0}) == 0 {
 			//fmt.Println("TODO: WINDOWS 2016 SUPP DATA FOR PLAINTEXT")
 			pekIndex := binary.LittleEndian.Uint16(ct.Header[4:6])
-			plainBytes = decryptAES(d.pek[pekIndex],
+			plainBytes, err = decryptAES(d.pek[pekIndex],
 				ct.EncryptedHash[4:],
 				ct.KeyMaterial[:])
+			if err != nil {
+				return r, err
+			}
 		} else {
-			plainBytes = d.removeRC4(ct)
+			plainBytes, err = d.removeRC4(ct)
+			if err != nil {
+				return r, err
+			}
 		}
 		if len(plainBytes) < 100 {
 			return r, fmt.Errorf("Bad length for user properties: expecting >100 got %d ", len(plainBytes))

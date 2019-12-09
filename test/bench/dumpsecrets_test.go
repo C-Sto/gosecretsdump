@@ -17,7 +17,10 @@ func BenchmarkBigProgram(t *testing.B) {
 }*/
 
 func TestProgram(t *testing.T) {
-	dr := ditreader.New("../system", "../ntds.dit")
+	dr, err := ditreader.New("../system", "../ntds.dit")
+	if err != nil {
+		t.Fatal(err)
+	}
 	//dr := ditreader.New("../big/registry/SYSTEM", "../big/Active Directory/ntds.dit")
 	//handle any output
 	dataChan := dr.GetOutChan()
@@ -33,7 +36,10 @@ func TestProgram(t *testing.T) {
 func BenchmarkProgram(t *testing.B) {
 	t.ReportAllocs()
 	for i := 0; i < t.N; i++ {
-		dr := ditreader.New("../system", "../ntds.dit")
+		dr, err := ditreader.New("../system", "../ntds.dit")
+		if err != nil {
+			t.Fatal(err)
+		}
 		//dr := ditreader.New("../big/registry/SYSTEM", "../big/Active Directory/ntds.dit")
 		//handle any output
 		dataChan := dr.GetOutChan()
