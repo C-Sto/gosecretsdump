@@ -75,7 +75,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		var err error
 		dh.Supp, err = d.decryptSupp(record)
 		if err != nil {
-			panic(err)
+			fmt.Println("Error: ", err)
 		}
 	}
 
@@ -109,8 +109,11 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 		} else {
 			plainBytes = d.removeRC4(ct)
 		}
-
+		if len(plainBytes) < 100 {
+			return r, fmt.Errorf("Bad length for user properties: expecting >100 got %d ", len(plainBytes))
+		}
 		props := NewSAMRUserProperties(plainBytes)
+
 		for _, x := range props.Properties {
 			//apparently we should care about kerberos-newer-keys, but I don't really want to at the moment
 			s, e := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder().String(string(x.PropertyName))
