@@ -10,7 +10,6 @@ jobs:
     name: Run Go benchmark
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
       - uses: actions/setup-go@v1
       - name: Set GOPATH
         # temporary fix
@@ -19,6 +18,9 @@ jobs:
           echo "##[set-env name=GOPATH;]$(dirname $GITHUB_WORKSPACE)"
           echo "##[add-path]$(dirname $GITHUB_WORKSPACE)/bin"
         shell: bash
+      - uses: actions/checkout@v1
+        with:
+          path: ./src/github.com/${{ github.repository }}
       - name: Run benchmark
         run: cd test/bench && go test -bench=. -benchtime=30s | tee output.txt
       - name: Store benchmark result
