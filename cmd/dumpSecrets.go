@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/c-sto/gosecretsdump/pkg/ditreader"
+	"github.com/C-Sto/gosecretsdump/pkg/ditreader"
 )
 
 type Settings struct {

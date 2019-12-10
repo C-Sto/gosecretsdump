@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/c-sto/gosecretsdump/pkg/winregistry"
+	"github.com/C-Sto/gosecretsdump/pkg/winregistry"
 	"golang.org/x/text/encoding/unicode"
 )
 
