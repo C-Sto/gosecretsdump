@@ -27,6 +27,8 @@ jobs:
       - name: Build # This would actually build your project, using zip for an example artifact
         run: |
           GOOS=windows go build -ldflags "-s -w" -o "gosecretsdump_win_${RELEASE_VERSION}.exe"
+          GOOS=darwin go build -ldflags "-s -w" -o "gosecretsdump_mac_${RELEASE_VERSION}"
+          GOOS=linux go build -ldflags "-s -w" -o "gosecretsdump_linux_${RELEASE_VERSION}"
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1.0.0
@@ -37,6 +39,21 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
+      - name: Compress win
+        uses: svenstaro/upx-action@v1-release
+        with:
+          file: gosecretsdump_win_${{ env.RELEASE_VERSION }}.exe
+          args: -9
+      - name: Compress mac
+        uses: svenstaro/upx-action@v1-release
+        with:
+          file: gosecretsdump_mac_${{ env.RELEASE_VERSION }}
+          args: -9
+      - name: Compress nix
+        uses: svenstaro/upx-action@v1-release
+        with:
+          file: gosecretsdump_linux_${{ env.RELEASE_VERSION }}
+          args: -9
       - name: Upload Release Asset
         id: upload-release-asset 
         uses: actions/upload-release-asset@v1.0.1
