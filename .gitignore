@@ -1,0 +1,7 @@
+/.vscode
+/impacket*
+test.txt
+/test/Big/*
+venv*
+.DS_Store
+*.cleartext
