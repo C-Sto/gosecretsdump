@@ -58,7 +58,7 @@ func consoleWriter(val <-chan ditreader.DumpedHash, s Settings) {
 		if dh.Supp.Username != "" {
 			hs.WriteString(dh.Supp.ClearString())
 			hs.WriteString(append.String())
-			if dh.Supp.IsKey {
+			if len(dh.Supp.KerbKeys) > 0 {
 				hs.WriteString("\n")
 				hs.WriteString(dh.Supp.KerbString())
 				hs.WriteString(append.String())
@@ -105,7 +105,7 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
 			pts.WriteString(dh.Supp.ClearString())
 			pts.WriteString(append.String())
 			pts.WriteString("\n")
-			if dh.Supp.IsKey {
+			if len(dh.Supp.KerbKeys) > 0 {
 				kerbs.WriteString(dh.Supp.KerbString())
 				kerbs.WriteString(append.String())
 				kerbs.WriteString("\n")

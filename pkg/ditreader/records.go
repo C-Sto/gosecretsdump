@@ -84,6 +84,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 
 func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 	r := SuppInfo{}
+
 	bval, _ := record.GetBytVal(nsupplementalCredentials) // record.Column[nsupplementalCredentials"]]
 	if len(bval) > 24 {                                   //is the value above the minimum for plaintex passwords?
 		username, _ := record.StrVal(nsAMAccountName)
@@ -128,15 +129,15 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 				}
 				cursor := 0
 				rec := NewSAMRKerbStoredCredNew(nhex)
+				r.KerbKeys = make([]string, rec.CredentialCount)
 				for credIndex := uint16(0); credIndex < rec.CredentialCount; credIndex++ {
 					keyData := NewSAMRKerbKeyDataNew(rec.Buffer[cursor:])
 					cursor += 24 //sizeof samrkerbkeydatanew
 					keyVal := nhex[keyData.KeyOffset : keyData.KeyOffset+keyData.KeyLength]
-					r.IsKey = true
 					if k, ok := kerbkeytype[keyData.KeyType]; ok {
-						r.KeyAnswer = fmt.Sprintf("%s:%s:%s", username, k, hex.EncodeToString(keyVal))
+						r.KerbKeys[credIndex] = fmt.Sprintf("%s:%s:%s", username, k, hex.EncodeToString(keyVal))
 					} else {
-						r.KeyAnswer = fmt.Sprintf("%s:%d:%s", username, keyData.KeyType, hex.EncodeToString(keyVal))
+						r.KerbKeys[credIndex] = fmt.Sprintf("%s:%d:%s", username, keyData.KeyType, hex.EncodeToString(keyVal))
 					}
 				}
 			}
@@ -155,10 +156,9 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 					sdec = string(x.PropertyValue)
 					r.NotASCII = true
 				}
-				r.Username = username
 				r.ClearPassword = sdec
 			}
-
+			r.Username = username
 		}
 	}
 

@@ -3,6 +3,7 @@ package ditreader
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 	u "unicode"
 )
 
@@ -59,8 +60,7 @@ type SuppInfo struct {
 	Username      string
 	ClearPassword string
 	NotASCII      bool
-	IsKey         bool
-	KeyAnswer     string
+	KerbKeys      []string
 }
 
 func (s SuppInfo) ClearString() string {
@@ -72,7 +72,7 @@ func (s SuppInfo) ClearString() string {
 }
 
 func (s SuppInfo) KerbString() string {
-	return s.KeyAnswer
+	return strings.Join(s.KerbKeys, "\n")
 }
 
 type DumpedHash struct {
