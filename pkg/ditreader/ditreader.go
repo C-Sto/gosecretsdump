@@ -9,9 +9,9 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/c-sto/gosecretsdump/pkg/systemreader"
+	"github.com/C-Sto/gosecretsdump/pkg/systemreader"
 
-	"github.com/c-sto/gosecretsdump/pkg/esent"
+	"github.com/C-Sto/gosecretsdump/pkg/esent"
 )
 
 //New Creates a new dit dumper

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/c-sto/gosecretsdump/pkg/esent"
+	"github.com/C-Sto/gosecretsdump/pkg/esent"
 	"golang.org/x/text/encoding/unicode"
 )
 

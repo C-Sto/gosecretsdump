@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	"github.com/c-sto/gosecretsdump/cmd"
+	"github.com/C-Sto/gosecretsdump/cmd"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package bench
 import (
 	"testing"
 
-	"github.com/c-sto/gosecretsdump/pkg/ditreader"
+	"github.com/C-Sto/gosecretsdump/pkg/ditreader"
 )
 
 /*
