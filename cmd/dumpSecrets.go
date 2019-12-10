@@ -18,8 +18,11 @@ type Settings struct {
 	Stream      bool
 }
 
-func GoSecretsDump(s Settings) {
-	dr := ditreader.New(s.SystemLoc, s.NTDSLoc)
+func GoSecretsDump(s Settings) error {
+	dr, err := ditreader.New(s.SystemLoc, s.NTDSLoc)
+	if err != nil {
+		return err
+	}
 	//handle any output
 	dataChan := dr.GetOutChan()
 	if s.Outfile != "" {
@@ -32,6 +35,7 @@ func GoSecretsDump(s Settings) {
 	} else {
 		consoleWriter(dataChan, s)
 	}
+	return nil
 }
 
 func consoleWriter(val <-chan ditreader.DumpedHash, s Settings) {

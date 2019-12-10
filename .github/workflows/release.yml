@@ -1,0 +1,86 @@
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+    - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+name: Upload Release Asset
+
+jobs:
+  build:
+    name: Upload Release Asset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v1
+      - name: Set GOPATH
+        # temporary fix
+        # see https://github.com/actions/setup-go/issues/14
+        run: |
+          echo "##[set-env name=RELEASE_VERSION;]$(echo ${GITHUB_REF:10})"
+          echo "##[set-env name=GOPATH;]$(dirname $GITHUB_WORKSPACE)"
+          echo "##[add-path]$(dirname $GITHUB_WORKSPACE)/bin"
+        shell: bash
+      - name: Checkout code
+        uses: actions/checkout@v1
+        with:
+          path: ./src/github.com/${{ github.repository }}
+      - name: Build # This would actually build your project, using zip for an example artifact
+        run: |
+          GOOS=windows go build -ldflags "-s -w" -o "gosecretsdump_win_${RELEASE_VERSION}.exe"
+          GOOS=darwin go build -ldflags "-s -w" -o "gosecretsdump_mac_${RELEASE_VERSION}"
+          GOOS=linux go build -ldflags "-s -w" -o "gosecretsdump_linux_${RELEASE_VERSION}"
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+      - name: Compress win
+        uses: svenstaro/upx-action@v1-release
+        with:
+          file: gosecretsdump_win_${{ env.RELEASE_VERSION }}.exe
+          args: -9
+      #- name: Compress mac
+      #  uses: svenstaro/upx-action@v1-release
+      #  with:
+      #    file: gosecretsdump_mac_${{ env.RELEASE_VERSION }}
+      #    args: -9
+      - name: Compress nix
+        uses: svenstaro/upx-action@v1-release
+        with:
+          file: gosecretsdump_linux_${{ env.RELEASE_VERSION }}
+          args: -9
+      - name: Upload win Asset
+        id: upload-release-asset-win
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: ./gosecretsdump_win_${{ env.RELEASE_VERSION }}.exe
+          asset_name: gosecretsdump_win_${{ env.RELEASE_VERSION }}.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+      - name: Upload mac Asset
+        id: upload-release-asset-mac
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: ./gosecretsdump_mac_${{ env.RELEASE_VERSION }}
+          asset_name: gosecretsdump_mac_${{ env.RELEASE_VERSION }}
+          asset_content_type: application/octet-stream
+      - name: Upload nix Asset
+        id: upload-release-asset-nix
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: ./gosecretsdump_linux_${{ env.RELEASE_VERSION }}
+          asset_name: gosecretsdump_linux_${{ env.RELEASE_VERSION }}
+          asset_content_type: application/x-elf
