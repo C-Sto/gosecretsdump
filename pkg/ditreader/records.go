@@ -120,6 +120,26 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 			if e != nil {
 				continue
 			}
+			if strings.Compare(s, "Primary:Kerberos-Newer-Keys") == 0 {
+				//try decode the thing first
+				nhex, err := hex.DecodeString(string(x.PropertyValue))
+				if err != nil {
+					continue
+				}
+				cursor := 0
+				rec := NewSAMRKerbStoredCredNew(nhex)
+				for credIndex := uint16(0); credIndex < rec.CredentialCount; credIndex++ {
+					keyData := NewSAMRKerbKeyDataNew(rec.Buffer[cursor:])
+					cursor += 24 //sizeof samrkerbkeydatanew
+					keyVal := nhex[keyData.KeyOffset : keyData.KeyOffset+keyData.KeyLength]
+					r.IsKey = true
+					if k, ok := kerbkeytype[keyData.KeyType]; ok {
+						r.KeyAnswer = fmt.Sprintf("%s:%s:%s", username, k, hex.EncodeToString(keyVal))
+					} else {
+						r.KeyAnswer = fmt.Sprintf("%s:%d:%s", username, keyData.KeyType, hex.EncodeToString(keyVal))
+					}
+				}
+			}
 			if strings.Compare(s, "Primary:CLEARTEXT") == 0 { //awwww yis
 				//try decode the thing first
 				nhex, err := hex.DecodeString(string(x.PropertyValue))

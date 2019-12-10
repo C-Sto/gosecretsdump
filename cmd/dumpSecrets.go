@@ -56,8 +56,13 @@ func consoleWriter(val <-chan ditreader.DumpedHash, s Settings) {
 		hs.WriteString(append.String())
 		hs.WriteString("\n")
 		if dh.Supp.Username != "" {
-			hs.WriteString(dh.Supp.HashString())
+			hs.WriteString(dh.Supp.ClearString())
 			hs.WriteString(append.String())
+			if dh.Supp.IsKey {
+				hs.WriteString("\n")
+				hs.WriteString(dh.Supp.KerbString())
+				hs.WriteString(append.String())
+			}
 			hs.WriteString("\n")
 			//pts = dh.Supp.HashString() + "\n"
 		}
@@ -70,6 +75,7 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
 	//build up the data to eventually write
 	hashes := strings.Builder{}
 	plaintext := strings.Builder{}
+	kerbs := strings.Builder{}
 
 	for dh := range val {
 		//dh := <-val
@@ -96,9 +102,15 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
 		hashes.WriteString(hs.String())
 		var pts strings.Builder
 		if dh.Supp.Username != "" {
-			pts.WriteString(dh.Supp.HashString())
+			pts.WriteString(dh.Supp.ClearString())
 			pts.WriteString(append.String())
 			pts.WriteString("\n")
+			if dh.Supp.IsKey {
+				kerbs.WriteString(dh.Supp.KerbString())
+				kerbs.WriteString(append.String())
+				kerbs.WriteString("\n")
+			}
+
 			//pts = dh.Supp.HashString() + "\n"
 			plaintext.WriteString(pts.String())
 		}
@@ -119,6 +131,14 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
 	}
 	defer ctfile.Close()
 	ctfile.WriteString(plaintext.String())
+
+	krbfile, err := os.OpenFile(s.Outfile+".kerb", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer krbfile.Close()
+	krbfile.WriteString(kerbs.String())
+
 }
 
 func fileStreamWriter(val <-chan ditreader.DumpedHash, s Settings) {
@@ -153,7 +173,7 @@ func fileStreamWriter(val <-chan ditreader.DumpedHash, s Settings) {
 		hs := dh.HashString() + append + "\n"
 		pts := ""
 		if dh.Supp.Username != "" {
-			pts = dh.Supp.HashString() + append + "\n"
+			pts = dh.Supp.ClearString() + append + "\n"
 			ctfile.WriteString(pts)
 		}
 		file.WriteString(hs)

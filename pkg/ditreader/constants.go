@@ -23,6 +23,10 @@ const (
 	npwdLastSet              = "ATTq589920"
 )
 
+var kerbkeytype = map[uint32]string{
+	1: "des-cbc-crc", 3: "des-cbc-md5", 17: "aes128-cts-hmac-sha1-96", 18: "aes256-cts-hmac-sha1-96", 0xffffff74: "rc4-hmac",
+}
+
 var nnToInternal = map[string]string{
 	"uSNCreated":              "ATTq131091",
 	"uSNChanged":              "ATTq131192",

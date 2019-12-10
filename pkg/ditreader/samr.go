@@ -1,6 +1,7 @@
 package ditreader
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"strings"
@@ -27,6 +28,60 @@ type SAMRUserProperties struct { /*
 	PropertySignature uint16
 	PropertyCount     uint16
 	Properties        []SAMRUserProperty
+}
+
+type SAMRKerbStoredCredNew struct {
+	/*
+	   structure = (
+	       ('Revision','<H=4'),
+	       ('Flags','<H=0'),
+	       ('CredentialCount','<H=0'),
+	       ('ServiceCredentialCount','<H=0'),
+	       ('OldCredentialCount','<H=0'),
+	       ('OlderCredentialCount','<H=0'),
+	       ('DefaultSaltLength','<H=0'),
+	       ('DefaultSaltMaximumLength','<H=0'),
+	       ('DefaultSaltOffset','<L=0'),
+	       ('DefaultIterationCount','<L=0'),
+	       ('Buffer',':'),
+	   )
+	*/
+	Revision, Flags, CredentialCount,
+	ServiceCredentialCount, OldCredentialCount,
+	OlderCredentialCount, DefaultSaltLength,
+	DefaultSaltMaximumLength uint16
+	DefaultSaltOffset, DefaultIterationCount uint32
+	Buffer                                   []byte
+}
+
+func NewSAMRKerbStoredCredNew(d []byte) SAMRKerbStoredCredNew {
+	r := SAMRKerbStoredCredNew{}
+	curs := 0
+	r.Revision = binary.LittleEndian.Uint16(getAndMoveCursor(d, &curs, 2))
+	r.Flags = binary.LittleEndian.Uint16(getAndMoveCursor(d, &curs, 2))
+	r.CredentialCount = binary.LittleEndian.Uint16(getAndMoveCursor(d, &curs, 2))
+	r.ServiceCredentialCount = binary.LittleEndian.Uint16(getAndMoveCursor(d, &curs, 2))
+	r.OldCredentialCount = binary.LittleEndian.Uint16(getAndMoveCursor(d, &curs, 2))
+	r.OlderCredentialCount = binary.LittleEndian.Uint16(getAndMoveCursor(d, &curs, 2))
+	r.DefaultSaltLength = binary.LittleEndian.Uint16(getAndMoveCursor(d, &curs, 2))
+	r.DefaultSaltMaximumLength = binary.LittleEndian.Uint16(getAndMoveCursor(d, &curs, 2))
+	r.DefaultSaltOffset = binary.LittleEndian.Uint32(getAndMoveCursor(d, &curs, 4))
+	r.DefaultIterationCount = binary.LittleEndian.Uint32(getAndMoveCursor(d, &curs, 4))
+	r.Buffer = d[curs:]
+
+	return r
+}
+
+type SAMRKerbKeyDataNew struct {
+	Reserved1, Reserved2 uint16
+	Reserved3, IterationCount,
+	KeyType, KeyLength, KeyOffset uint32
+}
+
+func NewSAMRKerbKeyDataNew(d []byte) SAMRKerbKeyDataNew {
+	kd := SAMRKerbKeyDataNew{}
+	binary.Read(bytes.NewReader(d), binary.LittleEndian, &kd)
+	return kd
 }
 
 func getAndMoveCursor(data []byte, curs *int, size int) []byte {

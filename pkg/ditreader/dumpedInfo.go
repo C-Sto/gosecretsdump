@@ -59,14 +59,20 @@ type SuppInfo struct {
 	Username      string
 	ClearPassword string
 	NotASCII      bool
+	IsKey         bool
+	KeyAnswer     string
 }
 
-func (s SuppInfo) HashString() string {
+func (s SuppInfo) ClearString() string {
 	frmt := "%s:CLEARTEXT:%s"
 	if s.NotASCII {
 		frmt = "%s:CLEARTEXT_HEX:%s"
 	}
 	return fmt.Sprintf(frmt, s.Username, s.ClearPassword)
+}
+
+func (s SuppInfo) KerbString() string {
+	return s.KeyAnswer
 }
 
 type DumpedHash struct {
