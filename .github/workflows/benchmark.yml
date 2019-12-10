@@ -1,0 +1,29 @@
+  
+name: Benchmark
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  benchmark:
+    name: Run Go benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-go@v1
+      - name: Run benchmark
+        run: cd test/bench && go test -bench=. -benchtime=30s | tee output.txt
+      - name: Store benchmark result
+        uses: rhysd/github-action-benchmark@v1
+        with:
+          name: Go Benchmark
+          tool: 'go'
+          output-file-path: test/bench/output.txt
+          # Use personal access token instead of GITHUB_TOKEN due to https://github.community/t5/GitHub-Actions/Github-action-not-triggering-gh-pages-upon-push/td-p/26869/highlight/false
+          github-token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+          auto-push: true
+          # Show alert with commit comment on detecting possible performance regression
+          alert-threshold: '110%'
+          comment-on-alert: true
+          fail-on-alert: true
