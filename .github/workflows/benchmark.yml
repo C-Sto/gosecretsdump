@@ -21,19 +21,10 @@ jobs:
       - uses: actions/checkout@v1
         with:
           path: ./src/github.com/${{ github.repository }}
-      - name: Run benchmark
-        run: cd test/bench && go test -bench=. -benchtime=30s | tee output.txt
-      - name: Store benchmark result
-        uses: rhysd/github-action-benchmark@v1
-        with:
-          name: Go Benchmark
-          tool: 'go'
-          output-file-path: test/bench/output.txt
-          # Use personal access token instead of GITHUB_TOKEN due to https://github.community/t5/GitHub-Actions/Github-action-not-triggering-gh-pages-upon-push/td-p/26869/highlight/false
-          github-token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
-          auto-push: true
-          # Show alert with commit comment on detecting possible performance regression
-          alert-threshold: '110%'
-          comment-on-alert: true
-          fail-on-alert: true
-          benchmark-data-dir-path: test/bench
+      #- name: Run benchmark
+      #  run: cd test/bench && go test -bench=. -benchtime=30s | tee output.txt
+      - name: Perform benchmarks
+        if: github.event_name == 'pull_request' && github.event.action == 'synchronize'
+        uses: shipt/go-benchmark-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
