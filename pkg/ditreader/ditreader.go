@@ -99,7 +99,10 @@ func (d DitReader) GetOutChan() <-chan DumpedHash {
 func (d *DitReader) Dump() error {
 	//if local (always local for now)
 	if d.systemHiveLocation != "" {
-		ls := systemreader.New(d.systemHiveLocation)
+		ls, err := systemreader.New(d.systemHiveLocation)
+		if err != nil {
+			return err
+		}
 		d.bootKey = ls.BootKey()
 		if d.ntdsFileLocation != "" {
 			d.noLMHash = ls.HasNoLMHashPolicy()

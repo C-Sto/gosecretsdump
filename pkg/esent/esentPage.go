@@ -28,7 +28,7 @@ func (p esent_page) getData(start uint16, size int) []byte {
 	return p.data[s : int(start)+size]
 }
 
-func (p *esent_page) getHeader() {
+func (p *esent_page) getHeader() error {
 	//decide on record type (ugh)
 	p.record = esent_page_header{}
 	//data := make([]byte, len(inData))
@@ -82,11 +82,10 @@ func (p *esent_page) getHeader() {
 	//check for extended
 	if p.dbHeader.PageSize > 8192 {
 		p.record.Len = 0
-		fmt.Println("DO WIN 7 EXTENDED OK")
-		panic("Not implemented") //ok to panic here
+		return fmt.Errorf("Not implemented: windows 7 extended")
 		//do win7 extended
 	}
-
+	return nil
 }
 
 func (p *esent_page) getTag(i int) (pageFlags uint16, tagData []byte, err error) {
