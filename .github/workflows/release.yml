@@ -54,7 +54,7 @@ jobs:
         with:
           file: gosecretsdump_linux_${{ env.RELEASE_VERSION }}
           args: -9
-      - name: Upload Release Asset
+      - name: Upload win Asset
         id: upload-release-asset 
         uses: actions/upload-release-asset@v1.0.1
         env:
@@ -64,3 +64,23 @@ jobs:
           asset_path: ./gosecretsdump_win_${{ env.RELEASE_VERSION }}.exe
           asset_name: gosecretsdump_win_${{ env.RELEASE_VERSION }}.exe
           asset_content_type: application/vnd.microsoft.portable-executable
+      - name: Upload mac Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: ./gosecretsdump_mac_${{ env.RELEASE_VERSION }}
+          asset_name: gosecretsdump_win_${{ env.RELEASE_VERSION }}
+          asset_content_type: application/octet-stream
+      - name: Upload nix Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: ./gosecretsdump_linux_${{ env.RELEASE_VERSION }}
+          asset_name: gosecretsdump_linux_${{ env.RELEASE_VERSION }}
+          asset_content_type: application/x-elf
