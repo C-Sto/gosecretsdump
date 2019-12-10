@@ -36,3 +36,4 @@ jobs:
           alert-threshold: '110%'
           comment-on-alert: true
           fail-on-alert: true
+          benchmark-data-dir-path: test/bench
