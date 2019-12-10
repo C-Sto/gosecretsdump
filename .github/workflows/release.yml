@@ -55,7 +55,7 @@ jobs:
           file: gosecretsdump_linux_${{ env.RELEASE_VERSION }}
           args: -9
       - name: Upload win Asset
-        id: upload-release-asset 
+        id: upload-release-asset-win
         uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -65,7 +65,7 @@ jobs:
           asset_name: gosecretsdump_win_${{ env.RELEASE_VERSION }}.exe
           asset_content_type: application/vnd.microsoft.portable-executable
       - name: Upload mac Asset
-        id: upload-release-asset 
+        id: upload-release-asset-mac
         uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -75,7 +75,7 @@ jobs:
           asset_name: gosecretsdump_win_${{ env.RELEASE_VERSION }}
           asset_content_type: application/octet-stream
       - name: Upload nix Asset
-        id: upload-release-asset 
+        id: upload-release-asset-nix
         uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
