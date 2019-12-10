@@ -21,10 +21,5 @@ jobs:
       - uses: actions/checkout@v1
         with:
           path: ./src/github.com/${{ github.repository }}
-      #- name: Run benchmark
-      #  run: cd test/bench && go test -bench=. -benchtime=30s | tee output.txt
-      - name: Perform benchmarks
-        if: github.event_name == 'pull_request' && github.event.action == 'synchronize'
-        uses: shipt/go-benchmark-action@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+      - name: Run benchmark
+        run: cd test/bench && go test -bench=. -benchtime=30s | tee output.txt
