@@ -44,11 +44,11 @@ jobs:
         with:
           file: gosecretsdump_win_${{ env.RELEASE_VERSION }}.exe
           args: -9
-      - name: Compress mac
-        uses: svenstaro/upx-action@v1-release
-        with:
-          file: gosecretsdump_mac_${{ env.RELEASE_VERSION }}
-          args: -9
+      #- name: Compress mac
+      #  uses: svenstaro/upx-action@v1-release
+      #  with:
+      #    file: gosecretsdump_mac_${{ env.RELEASE_VERSION }}
+      #    args: -9
       - name: Compress nix
         uses: svenstaro/upx-action@v1-release
         with:
