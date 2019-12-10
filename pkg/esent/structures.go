@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/unicode"
@@ -229,7 +230,7 @@ func (e esent_catalog_data_definition_entry) Init(inData []byte) (esent_catalog_
 	buffer := bytes.NewBuffer(getAndMoveCursor(inData, &curs, 10))
 	err := binary.Read(buffer, binary.LittleEndian, &r.Fixed)
 	if err != nil {
-		panic(err)
+		return r, err
 	}
 
 	//this is where it gets hairy :(
@@ -239,7 +240,7 @@ func (e esent_catalog_data_definition_entry) Init(inData []byte) (esent_catalog_
 		buffer := bytes.NewBuffer(getAndMoveCursor(inData, &curs, 16))
 		err := binary.Read(buffer, binary.LittleEndian, &r.Columns)
 		if err != nil {
-			panic(err)
+			return r, err
 		}
 	} else {
 
@@ -254,12 +255,12 @@ func (e esent_catalog_data_definition_entry) Init(inData []byte) (esent_catalog_
 			buffer := bytes.NewBuffer(getAndMoveCursor(inData, &curs, 12))
 			err := binary.Read(buffer, binary.LittleEndian, &r.Index)
 			if err != nil {
-				panic(err)
+				return r, err
 			}
 		} else if r.Fixed.Type == CATALOG_TYPE_LONG_VALUE {
 			r.LV.SpaceUsage = binary.LittleEndian.Uint32(getAndMoveCursor(inData, &curs, 4))
 		} else if r.Fixed.Type == CATALOG_TYPE_CALLBACK {
-			panic("lol no")
+			return r, fmt.Errorf("Catalog type callback unexpected")
 		} else {
 			return esent_catalog_data_definition_entry{}, errors.New("Unkown Type")
 		}
@@ -414,41 +415,35 @@ func (e esent_recordVal) Bytes() []byte {
 	return e.val
 }
 
-func (e *Esent_record) StrVal(column string) (string, bool) {
+func (e *Esent_record) StrVal(column string) (string, error) {
 	v, ok := e.column[column]
 	if ok {
-		return v.String(), ok
+		return v.String()
 	}
-	return "", ok
+	return "", fmt.Errorf("No value found")
 }
 
 var d = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
 
-func (v esent_recordVal) String() string {
+func (v esent_recordVal) String() (string, error) {
 	if v.codePage == 20127 { //ascii
 		//v easy
 		//record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(record.Column[column].BytVal)}
-		return string(v.val)
+		return string(v.val), nil
 	} else if v.codePage == 1200 { //unicode oh boy
 		//unicode utf16le
 
 		b, err := d.Bytes(v.val)
-		if err != nil {
-			panic(err)
-		}
-		return string(b)
+		return string(b), err
 		//record.Column[column] = esent_recordVal{Typ: "Str", StrVal: string(b)}
 	} else if v.codePage == 1252 {
 		//fmt.Println("DO WESTERN!!", string(record.Column[column].BytVal))
 		d := charmap.Windows1252.NewDecoder()
 		b, err := d.Bytes(v.val)
-		if err != nil {
-			panic(err)
-		}
-		return string(b)
+		return string(b), err
 		//western... idk yet
 	}
-	return ""
+	return "", fmt.Errorf("Unknown codepage")
 }
 
 func (e *Esent_record) GetRecord(column string) *esent_recordVal {

@@ -50,7 +50,7 @@ func (e Esedb) Init(fn string) Esedb {
 }
 
 //OpenTable opens a table, and returns a cursor pointing to the current parsing state
-func (e *Esedb) OpenTable(s string) *Cursor {
+func (e *Esedb) OpenTable(s string) (*Cursor, error) {
 	r := Cursor{} //this feels like it can be optimised
 
 	//if the table actually exists
@@ -61,13 +61,13 @@ func (e *Esedb) OpenTable(s string) *Cursor {
 		buffer := bytes.NewBuffer(entry.EntryData)
 		err := binary.Read(buffer, binary.LittleEndian, &ddHeader)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		//initialise the catalog entry
 		catEnt, err := esent_catalog_data_definition_entry{}.Init(entry.EntryData[4:])
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		//determine the page number to retreive
@@ -82,7 +82,11 @@ func (e *Esedb) OpenTable(s string) *Cursor {
 			}
 			for i := uint16(1); i < page.record.FirstAvailablePageTag; i++ {
 				if page.record.PageFlags&FLAGS_LEAF == 0 {
-					flags, data := page.getTag(int(i))
+					flags, data, err := page.getTag(int(i))
+					if err != nil {
+						//TODO: decide if we want to error, or die
+						fmt.Println(err)
+					}
 					branchEntry := esent_branch_entry{}.Init(flags, data)
 					pageNum = branchEntry.ChildPageNumber
 					break
@@ -98,10 +102,10 @@ func (e *Esedb) OpenTable(s string) *Cursor {
 			CurrentPageData:      page,
 			CurrentTag:           0,
 		}
-		return &cursor
+		return &cursor, nil
 	}
 
-	return &r
+	return &r, nil
 }
 
 func (e *Esedb) mountDb(filename string) {
@@ -114,7 +118,7 @@ func (e *Esedb) mountDb(filename string) {
 	e.parseCatalog(CATALOG_PAGE_NUMBER) //4  ?
 }
 
-func (e *Esedb) parseCatalog(pagenum uint32) {
+func (e *Esedb) parseCatalog(pagenum uint32) error {
 	//parse all pages starting at pagenum, and add to the in-memory table
 
 	//get the page
@@ -126,7 +130,10 @@ func (e *Esedb) parseCatalog(pagenum uint32) {
 	//Iterate over each tag in the branch
 	for i := 1; i < int(page.record.FirstAvailablePageTag); i++ {
 		//get the tag flags, and data
-		flags, data := page.getTag(i)
+		flags, data, err := page.getTag(i)
+		if err != nil {
+			return err
+		}
 		//if we are looking at a branch page
 		if page.record.PageFlags&FLAGS_LEAF == 0 {
 			//create the branch entry from the flags and data retreived
@@ -135,25 +142,29 @@ func (e *Esedb) parseCatalog(pagenum uint32) {
 			e.parseCatalog(branchEntry.ChildPageNumber)
 		}
 	}
+	return nil
 }
-func (e *Esedb) parsePage(page *esent_page) {
+func (e *Esedb) parsePage(page *esent_page) error {
 	//baseOffset := page.record.Len // useless line?
 	if page.record.PageFlags&FLAGS_LEAF == 0 || //not a leaf, don't care
 		page.record.PageFlags&FLAGS_LEAF > 0 && (page.record.PageFlags&FLAGS_SPACE_TREE > 0 ||
 			page.record.PageFlags&FLAGS_INDEX > 0 || page.record.PageFlags&FLAGS_LONG_VALUE > 0) {
-		return
+		return nil
 	}
 
 	//must be table entry
 	for tagnum := 1; tagnum < int(page.record.FirstAvailablePageTag); tagnum++ {
-		flags, data := page.getTag(tagnum)
+		flags, data, err := page.getTag(tagnum)
+		if err != nil {
+			return err
+		}
 		leafEntry := esent_leaf_entry{}.Init(flags, data)
 		e.addLeaf(leafEntry)
 	}
+	return nil
 }
 
 func (e *Esedb) GetNextRow(c *Cursor) (Esent_record, error) {
-	//	panic(fmt.Sprintf("%+v", c))
 	c.CurrentTag++
 	// increment cursor pointer to look for 'next' tag
 
@@ -175,28 +186,32 @@ func (e *Esedb) GetNextRow(c *Cursor) (Esent_record, error) {
 		return e.GetNextRow(c) //lol recursion
 	}
 
-	flags, data := page.getTag(int(c.CurrentTag))
+	flags, data, err := page.getTag(int(c.CurrentTag))
+	if err != nil {
+		return Esent_record{}, err
+	}
 	tag := esent_leaf_entry{}.Init(flags, data)
 	return e.tagToRecord(c, tag.EntryData)
 }
 
-func (e *Esedb) addLeaf(l esent_leaf_entry) {
+func (e *Esedb) addLeaf(l esent_leaf_entry) error {
 	ddHeader := esent_data_definition_header{}
 	buffer := bytes.NewBuffer(l.EntryData)
 	err := binary.Read(buffer, binary.LittleEndian, &ddHeader)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	catEntry, err := esent_catalog_data_definition_entry{}.Init(l.EntryData[4:])
 	if err != nil {
 		//can't parse the entry good, ignore it lol
-		fmt.Println("SOME ADDLEAFE ERROR", err)
-		return
+		return err
 	}
 
-	itemName := e.parseItemName(l)
-
+	itemName, err := e.parseItemName(l)
+	if err != nil {
+		return err
+	}
 	//create table
 	if catEntry.Fixed.Type == CATALOG_TYPE_TABLE {
 		//t := newTable(string(itemName))
@@ -230,7 +245,7 @@ func (e *Esedb) addLeaf(l esent_leaf_entry) {
 	} else if catEntry.Fixed.Type == CATALOG_TYPE_INDEX {
 
 		//if e.tables[e.currentTable].Columns == nil {
-		return
+		return nil
 		//}
 		//e.tables[e.currentTable].Indexes.Add(string(itemName), l)
 
@@ -250,16 +265,17 @@ func (e *Esedb) addLeaf(l esent_leaf_entry) {
 		//e.tables[e.currentTable].AddData(string(lvName), l)
 		*/
 	} else {
-		panic("lol idk during add item??????")
+		return fmt.Errorf("Reached code it shuldn't")
 	}
+	return nil
 }
 
-func (e *Esedb) parseItemName(l esent_leaf_entry) []byte {
+func (e *Esedb) parseItemName(l esent_leaf_entry) ([]byte, error) {
 	ddHeader := esent_data_definition_header{}
 	buffer := bytes.NewBuffer(l.EntryData)
 	err := binary.Read(buffer, binary.LittleEndian, &ddHeader)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	entries := uint8(0)
 	if ddHeader.LastVariableDataType > 127 {
@@ -269,24 +285,21 @@ func (e *Esedb) parseItemName(l esent_leaf_entry) []byte {
 	}
 	entryLen := binary.LittleEndian.Uint16(l.EntryData[ddHeader.VariableSizeOffset:][:2])
 	entryName := l.EntryData[ddHeader.VariableSizeOffset:][2*entries:][:entryLen]
-	return entryName
+	return entryName, err
 }
 
-func (e *Esedb) getMainHeader(data []byte) esent_db_header {
+func (e *Esedb) getMainHeader(data []byte) (esent_db_header, error) {
 	dbhd := esent_db_header{}
 	buffer := bytes.NewBuffer(data)
 	err := binary.Read(buffer, binary.LittleEndian, &dbhd)
-	if err != nil {
-		panic(err)
-	}
-	return dbhd
+	return dbhd, err
 }
 
-func (e *Esedb) loadPages(fn string) {
+func (e *Esedb) loadPages(fn string) error {
 
 	f, err := os.Open(fn)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	sts, _ := f.Stat()
 	e.db = &fileInMem{}
@@ -294,7 +307,10 @@ func (e *Esedb) loadPages(fn string) {
 	defer f.Close()
 	hdr := make([]byte, e.pageSize)
 	fr.Read(hdr)
-	e.dbHeader = e.getMainHeader(hdr)
+	e.dbHeader, err = e.getMainHeader(hdr)
+	if err != nil {
+		return err
+	}
 	e.pageSize = e.dbHeader.PageSize
 
 	pages := int(sts.Size()) / int(e.pageSize)
@@ -304,7 +320,7 @@ func (e *Esedb) loadPages(fn string) {
 	for i := uint32(1); i < e.totalPages; i++ {
 		start := i * e.pageSize
 		if int(start) > int(sts.Size()) {
-			return
+			return nil
 		}
 		end := start + e.pageSize
 		//r := make([]byte, count)
@@ -320,6 +336,7 @@ func (e *Esedb) loadPages(fn string) {
 		}
 		r.cached = true
 	}
+	return nil
 }
 
 //retreives a page of data from the file?

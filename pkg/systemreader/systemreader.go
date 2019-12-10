@@ -18,10 +18,11 @@ type SystemReader struct {
 }
 
 //New creates a new SystemReader pointing at the specified file.
-func New(s string) SystemReader {
+func New(s string) (SystemReader, error) {
+	var err error
 	r := SystemReader{systemLoc: s}
-	r.registry = winregistry.WinregRegistry{}.Init(s, false)
-	return r
+	r.registry, err = winregistry.WinregRegistry{}.Init(s, false)
+	return r, err
 }
 
 //BootKey returns the bootkey extracted from the SYSTEM file
@@ -32,14 +33,14 @@ func (l SystemReader) BootKey() []byte {
 	return l.bootKey
 }
 
-func (l *SystemReader) getBootKey() {
+func (l *SystemReader) getBootKey() error {
 	bk := []byte{}
 	tmpKey := ""
 	//winreg := winregistry.WinregRegistry{}.Init(l.systemLoc, false)
 	//get control set
 	_, bcurrentControlset, err := l.registry.GetVal("\\Select\\Current")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	currentControlset := fmt.Sprintf("ControlSet%03d", binary.LittleEndian.Uint32(bcurrentControlset))
@@ -57,13 +58,14 @@ func (l *SystemReader) getBootKey() {
 	transforms := []int{8, 5, 4, 2, 11, 9, 13, 3, 0, 6, 1, 12, 14, 10, 15, 7}
 	unhexedKey, err := hex.DecodeString(tmpKey)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	for i := 0; i < len(unhexedKey); i++ {
 		bk = append(bk, unhexedKey[transforms[i]])
 	}
 	//fmt.Println("Target system bootkey: ", "0x"+hex.EncodeToString(bk))
 	l.bootKey = bk
+	return nil
 }
 
 //HasNoLMHashPolicy returns true if no LM hashes are allowed per the SYSTEM file. A False response indicates that LM hashes may exist within the domain/machine.

@@ -7,29 +7,33 @@ import (
 	"crypto/md5"
 	"crypto/rc4"
 	"encoding/binary"
+	"fmt"
 	"strconv"
 )
 
-func removeDES(b []byte, rid string) []byte {
+func removeDES(b []byte, rid string) ([]byte, error) {
+	if len(b) < 8 {
+		return nil, fmt.Errorf("Des ciphertext not long enough. Expected x>8, got x=%d", len(b))
+	}
 	ridI, err := strconv.Atoi(rid)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	k1, k2 := deriveKey(ridI)
 	c1, err := des.NewCipher(k1)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	c2, err := des.NewCipher(k2)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	p1 := make([]byte, 8)
 	p2 := make([]byte, 8)
 
 	c1.Decrypt(p1, b[:8])
 	c2.Decrypt(p2, b[8:])
-	return append(p1, p2...)
+	return append(p1, p2...), nil
 }
 
 func deriveKey(baseKey int) (k1, k2 []byte) {
@@ -63,19 +67,22 @@ func transformKey(inKey []byte) []byte {
 	return outKey
 }
 
-func (d DitReader) removeRC4(c CryptedHash) []byte {
+func (d DitReader) removeRC4(c CryptedHash) ([]byte, error) {
 	tmpKey := md5.Sum(append(d.pek[int(c.Header[4])], c.KeyMaterial[:]...))
 	lol, err := rc4.NewCipher(tmpKey[:])
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	plain := make([]byte, len(c.EncryptedHash))
 	lol.XORKeyStream(plain, c.EncryptedHash[:])
-	return plain
+	return plain, nil
 }
 
 //NewCryptedHash creates a CryptedHash object containing key material and encrypted content.
-func NewCryptedHash(inData []byte) CryptedHash {
+func NewCryptedHash(inData []byte) (CryptedHash, error) {
+	if len(inData) < 16 {
+		return CryptedHash{}, fmt.Errorf("Invalid crypted hash length. Expected x>16, got x=", len(inData))
+	}
 	cursor := 0
 	r := CryptedHash{}
 	copy(r.Header[:], inData[:8])
@@ -83,7 +90,7 @@ func NewCryptedHash(inData []byte) CryptedHash {
 	copy(r.KeyMaterial[:], inData[cursor:cursor+16])
 	cursor += 16
 	r.EncryptedHash = inData[cursor:]
-	return r
+	return r, nil
 }
 
 type CryptedHash struct {
@@ -92,15 +99,15 @@ type CryptedHash struct {
 	EncryptedHash []byte
 }
 
-func decryptAES(key, value, iv []byte) []byte {
+func decryptAES(key, value, iv []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	thing := cipher.NewCBCDecrypter(block, iv)
 	dst := make([]byte, len(value))
 	thing.CryptBlocks(dst, value)
-	return dst
+	return dst, nil
 }
 
 type CryptedHashW16 struct {

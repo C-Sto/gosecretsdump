@@ -28,7 +28,7 @@ func (p esent_page) getData(start uint16, size int) []byte {
 	return p.data[s : int(start)+size]
 }
 
-func (p *esent_page) getHeader() {
+func (p *esent_page) getHeader() error {
 	//decide on record type (ugh)
 	p.record = esent_page_header{}
 	//data := make([]byte, len(inData))
@@ -36,7 +36,6 @@ func (p *esent_page) getHeader() {
 	p.record.Len = 40 //all record lengths are 40, except the extended
 	cursor := 0
 
-	var err error
 	if p.dbHeader.Version < 0x620 || (p.dbHeader.Version == 0x620 && p.dbHeader.FileFormatRevision < 0x0b) {
 		//make it xp
 		//r.recordType = "structure_2003_SP0"
@@ -83,20 +82,15 @@ func (p *esent_page) getHeader() {
 	//check for extended
 	if p.dbHeader.PageSize > 8192 {
 		p.record.Len = 0
-		fmt.Println("DO WIN 7 EXTENDED OK")
-		panic("Not implemented")
+		return fmt.Errorf("Not implemented: windows 7 extended")
 		//do win7 extended
 	}
-
-	if err != nil {
-		panic(err)
-	}
-
+	return nil
 }
 
-func (p *esent_page) getTag(i int) (pageFlags uint16, tagData []byte) {
+func (p *esent_page) getTag(i int) (pageFlags uint16, tagData []byte, err error) {
 	if int(p.record.FirstAvailablePageTag) < i {
-		panic("trying to grab tag??? 0x" + string(i))
+		return 0, nil, fmt.Errorf("trying to grab tag??? 0x%s" + string(i))
 	}
 	//len(self.record) calls __len()__ on a Structure object, which just returns len(self.data).
 	//I manually (print/echo debugging ftw) looked at the structures to work it out,
@@ -113,5 +107,5 @@ func (p *esent_page) getTag(i int) (pageFlags uint16, tagData []byte) {
 	tagData = p.data[p.record.Len+valueOffset:][:valsize]
 	//copy(tagData, p.data[p.record.Len+valueOffset:][:valsize])
 
-	return pageFlags, tagData
+	return pageFlags, tagData, nil
 }
