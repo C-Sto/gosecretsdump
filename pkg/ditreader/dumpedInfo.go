@@ -3,6 +3,7 @@ package ditreader
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 	u "unicode"
 )
 
@@ -59,14 +60,19 @@ type SuppInfo struct {
 	Username      string
 	ClearPassword string
 	NotASCII      bool
+	KerbKeys      []string
 }
 
-func (s SuppInfo) HashString() string {
+func (s SuppInfo) ClearString() string {
 	frmt := "%s:CLEARTEXT:%s"
 	if s.NotASCII {
 		frmt = "%s:CLEARTEXT_HEX:%s"
 	}
 	return fmt.Sprintf(frmt, s.Username, s.ClearPassword)
+}
+
+func (s SuppInfo) KerbString() string {
+	return strings.Join(s.KerbKeys, "\n")
 }
 
 type DumpedHash struct {
