@@ -8,7 +8,7 @@ import (
 	"github.com/C-Sto/gosecretsdump/cmd"
 )
 
-const version = "0.0.1"
+const version = "0.1.0"
 
 func main() {
 
