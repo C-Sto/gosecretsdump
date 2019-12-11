@@ -39,21 +39,21 @@ const REG_DWORD = 0x04
 const REG_MULTISZ = 0x07
 const REG_QWORD = 0x0b
 
-func (w winregF) Init(ind []byte) winregF {
+func (w winregF) Init(ind []byte) (winregF, error) {
 	r := winregF{}
 	d := make([]byte, len(ind))
 	copy(d, ind)
 	buffer := bytes.NewBuffer(d)
 	err := binary.Read(buffer, binary.LittleEndian, &r)
 	if err != nil {
-		panic(err)
+		return r, err
 	}
 
 	//do integrity stuff I guess?
 	if bytes.Compare(r.Magic[:], []byte("regf")) != 0 {
-		panic("bad magic header on registry key")
+		return r, fmt.Errorf("magic header on registry key failure")
 	}
-	return r
+	return r, nil
 }
 
 type fileInMem struct {
@@ -154,29 +154,32 @@ func (w WinregRegistry) findRootKey() (reg_blockStruct, error) {
 	return reg_blockStruct{}, errors.New("Couldn't Find Root NK")
 }
 
-func (w WinregRegistry) Init(s string, b bool) WinregRegistry {
+func (w WinregRegistry) Init(s string, b bool) (WinregRegistry, error) {
 
 	f, err := os.Open(s)
 	if err != nil {
-		panic(err)
+		return WinregRegistry{}, err
 	}
 	r := WinregRegistry{}
 	data, err := ioutil.ReadAll(f)
 	if err != nil {
-		panic(err)
+		return r, err
 	}
 	f.Close()
 	r.fd = fileInMem{data}
-	r.regF = winregF{}.Init(r.fd.Read(0, 4096)) // data[:4096])
+	r.regF, err = winregF{}.Init(r.fd.Read(0, 4096)) // data[:4096])
+	if err != nil {
+		return r, err
+	}
 	r.ident = ""
 	r.rootKey, err = r.findRootKey()
 
 	if err != nil {
-		fmt.Println("COULD NOT FIND ROOT KEY")
+		return r, fmt.Errorf("Could not find root key: %s", err.Error())
 	} else if r.regF.MajorVersion != 1 && r.regF.MinorVersion > 5 {
-		fmt.Println("Unsupported version or something? idk, stuff is about to get weird")
+		return r, fmt.Errorf("Unsupported version, unexpected value. Wanted major 1 and minor over 5 got major %d minor %x", r.regF.MajorVersion, r.regF.MinorVersion)
 	}
-	return r
+	return r, nil
 }
 
 func (f fileInMem) Read(start, count int) []byte {
@@ -338,17 +341,16 @@ func (b reg_hbinblock) Init(ind []byte) reg_hbinblock {
 
 func (w WinregRegistry) compareHash(magic [2]byte, hashData []byte, key string) (uint32, error) {
 	if string(magic[:]) == "ri" {
-		offset := binary.LittleEndian.Uint32(hashData[:4])
-		nk, _ := w.getBlock(offset)
-		fmt.Println("DO RI AAA", nk)
-		panic("Not implemented")
+		//offset := binary.LittleEndian.Uint32(hashData[:4])
+		//nk, _ := w.getBlock(offset)
+		return 0, fmt.Errorf("Not implemented: registry RI")
 	}
 
 	hashRec := reg_hash{}
 	buffer := bytes.NewBuffer(hashData)
 	err := binary.Read(buffer, binary.LittleEndian, &hashRec)
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
 	switch string(magic[:]) {
 	case "lf":
@@ -388,8 +390,8 @@ func (w WinregRegistry) findSubKey(parKey reg_blockStruct, subkey string) (reg_b
 	data := make([]byte, len(lf.HashRecords))
 	copy(data, lf.HashRecords)
 	if string(lf.Magic[:]) == "ri" {
-		fmt.Println("DO FIND SUBKEY RI STUFF?")
-		panic("Not implemented")
+		//fmt.Println("DO FIND SUBKEY RI STUFF?")
+		return reg_blockStruct{}, fmt.Errorf("Not implemented: registry RI subkey")
 	}
 	for record := uint32(0); record < parKey.NumSubKeys; record++ {
 		hashrec := make([]byte, 8)

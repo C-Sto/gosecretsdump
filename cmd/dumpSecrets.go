@@ -18,8 +18,11 @@ type Settings struct {
 	Stream      bool
 }
 
-func GoSecretsDump(s Settings) {
-	dr := ditreader.New(s.SystemLoc, s.NTDSLoc)
+func GoSecretsDump(s Settings) error {
+	dr, err := ditreader.New(s.SystemLoc, s.NTDSLoc)
+	if err != nil {
+		return err
+	}
 	//handle any output
 	dataChan := dr.GetOutChan()
 	if s.Outfile != "" {
@@ -32,6 +35,7 @@ func GoSecretsDump(s Settings) {
 	} else {
 		consoleWriter(dataChan, s)
 	}
+	return nil
 }
 
 func consoleWriter(val <-chan ditreader.DumpedHash, s Settings) {
@@ -120,14 +124,14 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
 
 	file, err := os.OpenFile(s.Outfile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
-		panic(err)
+		panic(err) //ok to panic here
 	}
 	defer file.Close()
 	file.WriteString(hashes.String())
 
 	ctfile, err := os.OpenFile(s.Outfile+".cleartext", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
-		panic(err)
+		panic(err) //ok to panic here
 	}
 	defer ctfile.Close()
 	ctfile.WriteString(plaintext.String())
@@ -144,13 +148,13 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
 func fileStreamWriter(val <-chan ditreader.DumpedHash, s Settings) {
 	file, err := os.OpenFile(s.Outfile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
-		panic(err)
+		panic(err) //ok to panic here
 	}
 	defer file.Close()
 
 	ctfile, err := os.OpenFile(s.Outfile+".cleartext", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
-		panic(err)
+		panic(err) //ok to panic here
 	}
 	defer ctfile.Close()
 	count := 0

@@ -115,18 +115,9 @@ func (e *Esedb) tagToRecord(c *Cursor, tag []byte) (Esent_record, error) {
 		} else {
 			//record.DeleteColumn(column)
 		}
-
-		/*
-			    if type(record[column]) is tuple:
-			# A multi value data, we won't decode it, just leave it this way
-		*/
 		if val != nil {
-			//record.UnpackInline(column, cRecord.Columns)
 			val.UnpackInline(cRecord.Columns)
 		}
-		//fmt.Println("after!", exists)
-		//fmt.Println(record.GetRecord(column))
-		//panic("cats")
 
 	}
 	return record, nil

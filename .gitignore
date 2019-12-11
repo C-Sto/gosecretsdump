@@ -2,6 +2,14 @@
 /impacket*
 test.txt
 /test/Big/*
+/big/*
 venv*
 .DS_Store
 *.cleartext
+*.kerb
+*.7z
+*.pprof
+*.exe
+*.dit
+*SECURITY
+*SYSTEM
