@@ -1,4 +1,4 @@
-package ntfsdump
+package main
 
 import (
 	"bytes"
@@ -7,9 +7,18 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/c-sto/gosecretsdump/pkg/logger"
+	"go.uber.org/zap"
 	"golang.org/x/text/encoding/unicode"
 )
+
+var Logger *zap.Logger
+
+func init() {
+	lc := zap.NewDevelopmentConfig()
+	lc.EncoderConfig.TimeKey = ""
+	Logger, _ = lc.Build()
+
+}
 
 //this has primarily been ported from https://github.com/kusano/ntfsdump/blob/master/ntfsdump.cpp
 
@@ -33,7 +42,7 @@ func NewFileName(b []byte) FileName {
 	binary.Read(buff, binary.LittleEndian, &ret.Metadata)
 	ret.Name = make([]byte, ret.Metadata.NameLength*2)
 	buff.Read(ret.Name)
-	//logger.Logger.Sugar().Infof("%+v %s", ret, ret.Name)
+	//Logger.Sugar().Infof("%+v %s", ret, ret.Name)
 	return ret
 }
 
@@ -54,13 +63,18 @@ type RecordHeader struct {
 	MFTRecord       uint32
 }
 
+func main() {
+	Test()
+
+}
+
 type Run struct {
 	Offset int64
 	Length int64
 }
 
 func Test() {
-	l := logger.Logger.Sugar()
+	l := Logger.Sugar()
 	// Open
 	//p, err := syscall.UTF16PtrFromString("\\\\?\\c:")
 	drive := []byte("\\\\?\\_:")
@@ -221,36 +235,36 @@ func parseRunList(runlist []byte, rlSize uint32, totalCluster int64) []Run {
 	res := []Run{}
 	p := 0
 	offset := int64(0)
-	logger.Logger.Sugar().Infof("%x", runlist[:50])
+	Logger.Sugar().Infof("%x", runlist[:50])
 	for runlist[p] != 0x00 {
 		lenLength := int(runlist[p] & 0xf)
 		lenOffset := int(runlist[p] >> 4)
 		p++
-		logger.Logger.Sugar().Infof("%x", runlist[p:p+10])
+		Logger.Sugar().Infof("%x", runlist[p:p+10])
 		if lenLength > 8 {
-			logger.Logger.Sugar().Panic("length not understood")
+			Logger.Sugar().Panic("length not understood")
 		}
 		lng := int64(0)
 		for i := uint64(0); i < uint64(lenLength); i++ {
 			lng |= int64(runlist[p]) << (8 * i)
 			p++
 		}
-		logger.Logger.Sugar().Infof("%x", runlist[p:p+10])
+		Logger.Sugar().Infof("%x", runlist[p:p+10])
 		offdiff := int64(0)
 		for i := uint64(0); i < uint64(lenOffset); i++ {
 			offdiff |= int64(runlist[p]) << (8 * i)
-			logger.Logger.Sugar().Infof("%x %x", offdiff, runlist[p])
+			Logger.Sugar().Infof("%x %x", offdiff, runlist[p])
 			p++
 		}
-		logger.Logger.Sugar().Infof("%x", runlist[p:p+10])
+		Logger.Sugar().Infof("%x", runlist[p:p+10])
 		//if offdiff >= (uint64(1) << ((lenOffset * 8) - 1)) {
 		//	offdiff -= uint64(1) << (lenOffset * 8)
 		//}
 		offset += offdiff
 		if offset < 0 || totalCluster <= int64(offset) {
-			logger.Logger.Sugar().Errorf("Invalid data run: total cluster %d offset %d", totalCluster, offset)
+			Logger.Sugar().Errorf("Invalid data run: total cluster %d offset %d", totalCluster, offset)
 		}
-		logger.Logger.Sugar().Infof("adding run offset: %x length: %x", offset, lng)
+		Logger.Sugar().Infof("adding run offset: %x length: %x", offset, lng)
 		res = append(res, Run{Offset: offset, Length: lng})
 	}
 	return res
@@ -261,12 +275,12 @@ func readRunList(h syscall.Handle, recordIndex int64, typeID uint16, MFTRunList 
 	readRecord(h, recordIndex, MFTRunList, recordSize, clusterSize, sectorSize, record)
 	rh := RecordHeader{}
 	binary.Read(bytes.NewReader(record), binary.LittleEndian, &rh)
-	logger.Logger.Sugar().Infof("%+v", rh)
+	Logger.Sugar().Infof("%+v", rh)
 	tmpBuff := findAttribute(&rh, recordSize, 0x20, record, func([]byte) bool { return true })
 	stage := 0
-	logger.Logger.Sugar().Info("tmp buff len:", len(tmpBuff))
+	Logger.Sugar().Info("tmp buff len:", len(tmpBuff))
 	if tmpBuff == nil {
-		logger.Logger.Sugar().Infof("Null NR attrlist %x", typeID)
+		Logger.Sugar().Infof("Null NR attrlist %x", typeID)
 		//record = make([]byte, recordSize)
 		tmpBuff = findAttribute(&rh, recordSize, typeID, record, func([]byte) bool { return true })
 		if tmpBuff == nil {
@@ -279,7 +293,7 @@ func readRunList(h syscall.Handle, recordIndex int64, typeID uint16, MFTRunList 
 		} else {
 			nrHeader := AttributeHeaderNonResident{}
 			binary.Read(bytes.NewReader(tmpBuff), binary.LittleEndian, &nrHeader)
-			logger.Logger.Sugar().Infof("%+v", nrHeader)
+			Logger.Sugar().Infof("%+v", nrHeader)
 			stage = 2 //non resident??
 			*runList = parseRunList(
 				tmpBuff[nrHeader.DataRunOffset:],
@@ -291,24 +305,36 @@ func readRunList(h syscall.Handle, recordIndex int64, typeID uint16, MFTRunList 
 			}
 		}
 	} else {
-		logger.Logger.Panic("Not yet implemented")
+		Logger.Panic("Not yet implemented")
 	}
 
 	return stage
 }
 
 func readRecord(h syscall.Handle, recordIndex int64, MFTRunList []Run, recordSize uint16, clusterSize uint16, sectorSize uint16, buffer []byte) error {
-	logger.Logger.Sugar().Infof("READING RECORD %d", recordIndex)
+	Logger.Sugar().Infof("READING RECORD %d", recordIndex)
 	sectorOffset := recordIndex * int64(recordSize) / int64(sectorSize)
 	sectornumber := recordSize / sectorSize
+	Logger.Sugar().Infof("SectorOffset: %x SectorNumber: %x (recordsize %x /sectorsize %x)", sectorOffset, sectornumber, recordSize, sectorSize)
 	for sector := uint16(0); sector < sectornumber; sector++ {
 		cluster := int64(sectorOffset+int64(sector)) / int64(clusterSize/sectorSize)
 		vcn := int64(0)
 		offset := int64(-1)
 
 		for _, run := range MFTRunList {
+			Logger.Sugar().Infof("Run: Offset: %x Length %x Cluster: %x VCN: %x", run.Offset, run.Length, cluster, vcn)
 			if cluster < vcn+run.Length {
-				offset = (run.Offset+cluster-vcn)*int64(clusterSize) + int64(sectorOffset+int64(sector))*int64(sectorSize)%int64(clusterSize)
+				Logger.Sugar().Infof("Offset calc:\n (%x + %x - %x) *\n%x +\n(%x+%x) *\n%x %%\n%x",
+					run.Offset, cluster, vcn,
+					clusterSize,
+					sectorOffset, sector,
+					sectorSize,
+					clusterSize)
+				offset = (run.Offset+cluster-vcn)*
+					int64(clusterSize) +
+					int64(sectorOffset+int64(sector))*
+						int64(sectorSize)%
+						int64(clusterSize)
 				break
 			}
 			vcn += run.Length
@@ -318,8 +344,10 @@ func readRecord(h syscall.Handle, recordIndex int64, MFTRunList []Run, recordSiz
 		}
 		seek(h, offset)
 		var read uint32
+		//e := syscall.ReadFile(h, buffer[sector*sectorSize:(sector*sectorSize)+sectorSize], &read, nil)
+		Logger.Sugar().Infof("Reading file: Sector: %x Sectorsize: %x s*s %x offset %x", sector, sectorSize, sector*sectorSize, offset)
 		e := syscall.ReadFile(h, buffer[sector*sectorSize:(sector*sectorSize)+sectorSize], &read, nil)
-		//logger.Logger.Sugar().Info("Bytes Read: ", read)
+		//Logger.Sugar().Info("Bytes Read: ", read)
 		if e != nil {
 			return e
 		}
@@ -331,15 +359,15 @@ func readRecord(h syscall.Handle, recordIndex int64, MFTRunList []Run, recordSiz
 func findAttribute(record *RecordHeader, recordSize, typeID uint16, buffer []byte, condition func([]byte) bool) []byte {
 	p := uint32(record.AttributeOffset)
 	for {
-		//logger.Logger.Sugar().Infof("P: %d, %d", p, len(buffer))
+		//Logger.Sugar().Infof("P: %d, %d", p, len(buffer))
 		//sizeof (AttributeHeaderR) = 16 bytes
 		if p+16 > uint32(len(buffer)) {
 			break
 		}
 		hdr := AttributeHeader{}
 		binary.Read(bytes.NewReader(buffer[p:]), binary.LittleEndian, &hdr)
-		//logger.Logger.Sugar().Infof("hdr %+v", hdr)
-		//logger.Logger.Sugar().Infof("byts: %+v", buffer[p:])
+		//Logger.Sugar().Infof("hdr %+v", hdr)
+		//Logger.Sugar().Infof("byts: %+v", buffer[p:])
 
 		if hdr.TypeID == 0xffffffff {
 			break
@@ -371,7 +399,7 @@ func fixRecord(buffer []byte, recordSize uint16, sectorSize uint16) {
 			buffer[targSec-1] = buffer[header.UpdateOffset+(i*2)+1]
 
 		}
-		//logger.Logger.Sugar().Infof("Sec: %x last: %x fixup: %x real: %x fixed: %x %x ",
+		//Logger.Sugar().Infof("Sec: %x last: %x fixup: %x real: %x fixed: %x %x ",
 		//targSec,
 		//buffer[targSec-2:targSec],
 		//buffer[header.UpdateOffset:header.UpdateOffset+2],
@@ -384,9 +412,9 @@ func fixRecord(buffer []byte, recordSize uint16, sectorSize uint16) {
 func seek(h syscall.Handle, position int64) {
 	newl, e := syscall.Seek(h, position, 0)
 	if e != nil {
-		logger.Logger.Sugar().Panic("Seek error", e)
+		Logger.Sugar().Panic("Seek error", e)
 	}
 	if newl != position {
-		logger.Logger.Sugar().Error("Seek position not the same?", newl, position)
+		Logger.Sugar().Error("Seek position not the same?", newl, position)
 	}
 }

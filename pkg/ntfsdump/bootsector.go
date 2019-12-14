@@ -1,4 +1,4 @@
-package ntfsdump
+package main
 
 type BootSector struct {
 	Jump             [3]byte

@@ -1,4 +1,4 @@
-package ntfsdump
+package main
 
 type AttributeHeader struct {
 	TypeID, Length                uint32
