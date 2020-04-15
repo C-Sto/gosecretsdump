@@ -48,7 +48,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		}
 	} else {
 		//hard coded empty lm hash
-		dh.LMHash, _ = hex.DecodeString("aad3b435b51404eeaad3b435b51404ee")
+		dh.LMHash = emptyLM //, _ = hex.DecodeString("aad3b435b51404eeaad3b435b51404ee")
 	}
 
 	//nt hash
@@ -77,7 +77,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		}
 	} else {
 		//hard coded empty NTLM hash
-		dh.NTHash, _ = hex.DecodeString("31D6CFE0D16AE931B73C59D7E0C089C0")
+		dh.NTHash = emptyNT //, _ = hex.DecodeString("31D6CFE0D16AE931B73C59D7E0C089C0")
 	}
 
 	//username
@@ -90,10 +90,67 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		dh.Username = fmt.Sprintf("%s", v)
 	}
 
+	//Password history LM
+	if v, _ := record.GetBytVal(nlmPwdHistory); v != nil && len(v) > 0 { //&& len(v) > 0 {
+		ch, err := NewCryptedHash(v)
+		if err != nil {
+			return dh, err
+		}
+		tmphst := []byte{}
+		tmphst, err = d.removeRC4(ch)
+		if err != nil {
+			return dh, err
+		}
+
+		for i := 0; i < len(tmphst)-16; i += 16 {
+			hst1 := tmphst[i : i+16]
+			hst2, err := removeDES(hst1, dh.Rid)
+			dh.History.NTHist = append(dh.History.LmHist, hst2)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+
+	//password history NT
+	if v, _ := record.GetBytVal(nntPwdHistory); v != nil && len(v) > 0 { //&& len(v) > 0 {
+		ch, err := NewCryptedHash(v)
+		if err != nil {
+			return dh, err
+		}
+		tmphst := []byte{}
+		if bytes.Compare(ch.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
+			panic("Not yet implemented")
+			/*
+				encryptedNTW := NewCryptedHashW16(v)
+				pekIndex := encryptedNTW.Header
+				tmpNT, err = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncrypedHash[:16], encryptedNTW.KeyMaterial[:])
+				if err != nil {
+					return dh, err
+				}
+			*/
+		} else {
+			tmphst, err = d.removeRC4(ch)
+			if err != nil {
+				return dh, err
+			}
+		}
+		for i := 0; i < len(tmphst)-16; i += 16 {
+			hst1 := tmphst[i : i+16]
+			hst2, err := removeDES(hst1, dh.Rid)
+			dh.History.NTHist = append(dh.History.NTHist, hst2)
+			if err != nil {
+				panic(err)
+			}
+		}
+
+	}
+	//check if account is enabled
 	if v, _ := record.GetLongVal(nuserAccountControl); v != 0 { // record.Column[nuserAccountControl"]].Long; v != 0 {
 		dh.UAC = decodeUAC(int(v))
 	}
 
+	//check if cleartext exists
 	if val, _ := record.GetBytVal(nsupplementalCredentials); len(val) > 24 {
 		//if val := record.Column[nsupplementalCredentials"]]; len(val.BytVal) > 24 {
 		var err error

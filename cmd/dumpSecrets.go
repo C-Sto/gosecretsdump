@@ -68,6 +68,7 @@ func consoleWriter(val <-chan ditreader.DumpedHash, s Settings) {
 				hs.WriteString(append.String())
 			}
 			hs.WriteString("\n")
+			hs.WriteString(dh.HistoryString())
 			//pts = dh.Supp.HashString() + "\n"
 		}
 		fmt.Print(hs.String())

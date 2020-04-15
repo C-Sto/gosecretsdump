@@ -13,3 +13,8 @@ venv*
 *.dit
 *SECURITY
 *SYSTEM
+/lib/*
+*.test
+*.prof
+*.out
+/test/python/*
