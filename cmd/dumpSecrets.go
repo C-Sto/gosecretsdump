@@ -118,7 +118,9 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
 				kerbs.WriteString(append.String())
 				kerbs.WriteString("\n")
 			}
-
+			if s.History {
+				hs.WriteString(dh.HistoryString())
+			}
 			//pts = dh.Supp.HashString() + "\n"
 			plaintext.WriteString(pts.String())
 		}
