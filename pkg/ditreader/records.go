@@ -107,7 +107,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 			hst2, err := removeDES(hst1, dh.Rid)
 			dh.History.NTHist = append(dh.History.LmHist, hst2)
 			if err != nil {
-				panic(err)
+				return dh, err
 			}
 		}
 	}
@@ -120,15 +120,12 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		}
 		tmphst := []byte{}
 		if bytes.Compare(ch.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
-			panic("Not yet implemented")
-			/*
-				encryptedNTW := NewCryptedHashW16(v)
-				pekIndex := encryptedNTW.Header
-				tmpNT, err = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncrypedHash[:16], encryptedNTW.KeyMaterial[:])
-				if err != nil {
-					return dh, err
-				}
-			*/
+			encryptedNTW := NewCryptedHashW16(v)
+			pekIndex := encryptedNTW.Header
+			tmphst, err = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncrypedHash[:16], encryptedNTW.KeyMaterial[:])
+			if err != nil {
+				return dh, err
+			}
 		} else {
 			tmphst, err = d.removeRC4(ch)
 			if err != nil {
@@ -138,10 +135,10 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		for i := 0; i < len(tmphst)-16; i += 16 {
 			hst1 := tmphst[i : i+16]
 			hst2, err := removeDES(hst1, dh.Rid)
-			dh.History.NTHist = append(dh.History.NTHist, hst2)
 			if err != nil {
-				panic(err)
+				return dh, err
 			}
+			dh.History.NTHist = append(dh.History.NTHist, hst2)
 		}
 
 	}

@@ -26,6 +26,7 @@ func main() {
 	flag.BoolVar(&s.NoPrint, "noprint", false, "Don't print output to screen (probably use this with the -out flag)")
 	flag.BoolVar(&s.Stream, "stream", false, "Stream to files rather than writing in a block. Can be much slower.")
 	flag.BoolVar(&vers, "version", false, "Print version and exit")
+	falg.BoolVar(&s.History, "history", false, "Include Password History")
 	flag.Parse()
 
 	if vers {
