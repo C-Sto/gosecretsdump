@@ -29,14 +29,14 @@ func GoSecretsDump(s Settings) error {
 	if s.Outfile != "" {
 		fmt.Println("Writing to file ", s.Outfile)
 		if s.Stream {
-			fileStreamWriter(dataChan, s)
+			go fileStreamWriter(dataChan, s)
 		} else {
-			fileWriter(dataChan, s)
+			go fileWriter(dataChan, s)
 		}
 	} else {
-		consoleWriter(dataChan, s)
+		go consoleWriter(dataChan, s)
 	}
-	return nil
+	return dr.Dump()
 }
 
 func consoleWriter(val <-chan ditreader.DumpedHash, s Settings) {

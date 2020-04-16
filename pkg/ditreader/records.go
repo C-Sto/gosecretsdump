@@ -32,7 +32,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		if bytes.Compare(encryptedLM.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
 			encryptedLMW := NewCryptedHashW16(b)
 			pekIndex := encryptedLMW.Header
-			tmpLM, err = decryptAES(d.pek[pekIndex[4]], encryptedLMW.EncrypedHash[:16], encryptedLMW.KeyMaterial[:])
+			tmpLM, err = decryptAES(d.pek[pekIndex[4]], encryptedLMW.EncryptedHash[:16], encryptedLMW.KeyMaterial[:])
 			if err != nil {
 				return dh, err
 			}
@@ -61,7 +61,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		if bytes.Compare(encryptedNT.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
 			encryptedNTW := NewCryptedHashW16(v)
 			pekIndex := encryptedNTW.Header
-			tmpNT, err = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncrypedHash[:16], encryptedNTW.KeyMaterial[:])
+			tmpNT, err = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncryptedHash[:16], encryptedNTW.KeyMaterial[:])
 			if err != nil {
 				return dh, err
 			}
@@ -120,9 +120,9 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		}
 		tmphst := []byte{}
 		if bytes.Compare(ch.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
-			encryptedNTW := NewCryptedHashW16(v)
+			encryptedNTW := NewCryptedHashW16History(v)
 			pekIndex := encryptedNTW.Header
-			tmphst, err = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncrypedHash[:16], encryptedNTW.KeyMaterial[:])
+			tmphst, err = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncryptedHash[:], encryptedNTW.KeyMaterial[:])
 			if err != nil {
 				return dh, err
 			}

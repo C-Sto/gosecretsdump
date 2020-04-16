@@ -31,8 +31,8 @@ func New(system, ntds string) (DitReader, error) {
 		printUserStatus:    false,
 		systemHiveLocation: system,
 		ntdsFileLocation:   ntds,
-		db:                 esent.Esedb{}.Init(ntds),
-		userData:           make(chan DumpedHash, 500),
+		//db:                 esent.Esedb{}.Init(ntds),
+		userData: make(chan DumpedHash, 500),
 	}
 
 	if parallel {
@@ -41,11 +41,15 @@ func New(system, ntds string) (DitReader, error) {
 		}
 	}
 	var err error
+	r.db, err = esent.Esedb{}.Init(ntds)
+	if err != nil {
+		return r, err
+	}
 	r.cursor, err = r.db.OpenTable("datatable")
 	if err != nil {
 		return r, err
 	}
-	go r.dump() //start dumping the file immediately output will be put into the output channel as it comes
+	//go r.dump() //start dumping the file immediately output will be put into the output channel as it comes
 
 	return r, err
 }

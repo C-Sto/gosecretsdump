@@ -35,7 +35,7 @@ var stringCodePages = map[uint32]string{
 	1252:  "cp1252",
 } //standin for const lookup/enum thing
 
-func (e Esedb) Init(fn string) Esedb {
+func (e Esedb) Init(fn string) (Esedb, error) {
 	//create the esedb structure
 	r := Esedb{
 		filename: fn,
@@ -45,8 +45,8 @@ func (e Esedb) Init(fn string) Esedb {
 	}
 
 	//'mount' the database (parse the file)
-	r.mountDb(fn)
-	return r
+	err := r.mountDb(fn)
+	return r, err
 }
 
 //OpenTable opens a table, and returns a cursor pointing to the current parsing state
@@ -108,14 +108,17 @@ func (e *Esedb) OpenTable(s string) (*Cursor, error) {
 	return &r, nil
 }
 
-func (e *Esedb) mountDb(filename string) {
+func (e *Esedb) mountDb(filename string) (err error) {
 	//the first page is the dbheader
-	e.loadPages(filename)
-
+	err = e.loadPages(filename)
+	if err != nil {
+		return
+	}
 	// this was a gross way of working out how many pages the file has...
-
 	//this is where everything actually gets parsed out
 	e.parseCatalog(CATALOG_PAGE_NUMBER) //4  ?
+
+	return
 }
 
 func (e *Esedb) parseCatalog(pagenum uint32) error {

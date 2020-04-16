@@ -111,10 +111,17 @@ func decryptAES(key, value, iv []byte) ([]byte, error) {
 }
 
 type CryptedHashW16 struct {
-	Header       [8]byte
-	KeyMaterial  [16]byte
-	Unknown      uint32
-	EncrypedHash [32]byte
+	Header        [8]byte
+	KeyMaterial   [16]byte
+	Unknown       uint32
+	EncryptedHash [32]byte
+}
+
+type CryptedHashW16History struct {
+	Header        [8]byte
+	KeyMaterial   [16]byte
+	Unknown       uint32
+	EncryptedHash []byte
 }
 
 func NewCryptedHashW16(data []byte) CryptedHashW16 {
@@ -129,7 +136,24 @@ func NewCryptedHashW16(data []byte) CryptedHashW16 {
 	r.Unknown = binary.LittleEndian.Uint32(data[:4])
 	data = data[4:]
 
-	copy(r.EncrypedHash[:], data[:32])
+	copy(r.EncryptedHash[:], data[:32])
+
+	return r
+}
+
+func NewCryptedHashW16History(data []byte) CryptedHashW16History {
+	r := CryptedHashW16History{}
+	//data := make([]byte, len(inData))
+	//copy(data, inData)
+	copy(r.Header[:], data[:8])
+	data = data[8:]
+	copy(r.KeyMaterial[:], data[:16])
+	data = data[16:]
+
+	r.Unknown = binary.LittleEndian.Uint32(data[:4])
+	data = data[4:]
+	r.EncryptedHash = make([]byte, len(data))
+	copy(r.EncryptedHash[:], data[:])
 
 	return r
 }

@@ -36,7 +36,10 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	cmd.GoSecretsDump(s)
+	e := cmd.GoSecretsDump(s)
+	if e != nil {
+		panic(e)
+	}
 }
 
 //info dumped out of https://github.com/SecureAuthCorp/impacket/blob/master/impacket/examples/secretsdump.py
