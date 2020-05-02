@@ -6,7 +6,6 @@ import (
 	"crypto/rc4"
 	"fmt"
 	"os"
-	"runtime"
 	"sync"
 
 	"github.com/C-Sto/gosecretsdump/pkg/systemreader"
@@ -16,7 +15,6 @@ import (
 
 //New Creates a new dit dumper
 func New(system, ntds string) (DitReader, error) {
-	parallel := false
 	r := DitReader{
 		isRemote:           false,
 		history:            false,
@@ -35,11 +33,6 @@ func New(system, ntds string) (DitReader, error) {
 		userData: make(chan DumpedHash, 500),
 	}
 
-	if parallel {
-		for i := 0; i < runtime.NumCPU()-1; i++ {
-			go r.decryptWorker()
-		}
-	}
 	var err error
 	r.db, err = esent.Esedb{}.Init(ntds)
 	if err != nil {

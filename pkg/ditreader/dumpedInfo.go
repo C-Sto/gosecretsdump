@@ -91,6 +91,29 @@ type PwdHistory struct {
 	NTHist [][]byte
 }
 
+func (d DumpedHash) HistoryStrings() []string {
+	r := make([]string, 0, len(d.History.NTHist))
+	for i, v := range d.History.LmHist {
+		r = append(r, fmt.Sprintf("%s_history%d:%s:%s:%s:::",
+			d.Username,
+			i,
+			d.Rid,
+			hex.EncodeToString(v),
+			hex.EncodeToString(emptyNT),
+		))
+	}
+	for i, v := range d.History.NTHist {
+		r = append(r, fmt.Sprintf("%s_history%d:%s:%s:%s:::",
+			d.Username,
+			i,
+			d.Rid,
+			hex.EncodeToString(emptyLM),
+			hex.EncodeToString(v),
+		))
+	}
+	return r
+}
+
 func (d DumpedHash) HistoryString() string {
 	r := strings.Builder{}
 	for i, v := range d.History.LmHist {

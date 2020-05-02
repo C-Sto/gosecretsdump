@@ -91,23 +91,25 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	}
 
 	//Password history LM
-	if v, _ := record.GetBytVal(nlmPwdHistory); v != nil && len(v) > 0 { //&& len(v) > 0 {
-		ch, err := NewCryptedHash(v)
-		if err != nil {
-			return dh, err
-		}
-		tmphst := []byte{}
-		tmphst, err = d.removeRC4(ch)
-		if err != nil {
-			return dh, err
-		}
-
-		for i := 0; i < len(tmphst)-16; i += 16 {
-			hst1 := tmphst[i : i+16]
-			hst2, err := removeDES(hst1, dh.Rid)
-			dh.History.NTHist = append(dh.History.LmHist, hst2)
+	if !d.noLMHash {
+		if v, _ := record.GetBytVal(nlmPwdHistory); v != nil && len(v) > 0 { //&& len(v) > 0 {
+			ch, err := NewCryptedHash(v)
 			if err != nil {
 				return dh, err
+			}
+			tmphst := []byte{}
+			tmphst, err = d.removeRC4(ch)
+			if err != nil {
+				return dh, err
+			}
+
+			for i := 16; i < len(tmphst); i += 16 {
+				hst1 := tmphst[i : i+16]
+				hst2, err := removeDES(hst1, dh.Rid)
+				dh.History.LmHist = append(dh.History.LmHist, hst2)
+				if err != nil {
+					return dh, err
+				}
 			}
 		}
 	}
@@ -132,7 +134,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 				return dh, err
 			}
 		}
-		for i := 0; i < len(tmphst)-16; i += 16 {
+		for i := 16; i < len(tmphst); i += 16 {
 			hst1 := tmphst[i : i+16]
 			hst2, err := removeDES(hst1, dh.Rid)
 			if err != nil {
