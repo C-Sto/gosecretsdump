@@ -1,0 +1,9 @@
+WIN-K97I9JS0MQ0$:aes256-cts-hmac-sha1-96:eb17251816833c6aa41adfbcc3e561a8c4ac09cd8432d1f699404091eba0e242
+WIN-K97I9JS0MQ0$:aes128-cts-hmac-sha1-96:447a4bffe6c5be6337fabdffaf2775ec
+WIN-K97I9JS0MQ0$:des-cbc-md5:e6b5a2ec6b944052
+krbtgt:aes256-cts-hmac-sha1-96:3d8ecf6154bf3a6296096cc72b257ea64d490e48da22352cd7cd95dfbb1ac06b
+krbtgt:aes128-cts-hmac-sha1-96:1b7702abe2cd8d78e3fa4d1466e91a71
+krbtgt:des-cbc-md5:4fd5e0e398621608
+camtest123:aes256-cts-hmac-sha1-96:f773fe8693823158418b711ce935ec6222f81cbe8f6705faa41c7a0993b2dc98
+camtest123:aes128-cts-hmac-sha1-96:7d38a681c4047ceaa265b52ec725880f
+camtest123:des-cbc-md5:ce673886a1019d1c

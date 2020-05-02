@@ -16,6 +16,7 @@ type Settings struct {
 	Outfile     string
 	NoPrint     bool
 	Stream      bool
+	History     bool
 }
 
 func GoSecretsDump(s Settings) error {
@@ -28,14 +29,14 @@ func GoSecretsDump(s Settings) error {
 	if s.Outfile != "" {
 		fmt.Println("Writing to file ", s.Outfile)
 		if s.Stream {
-			fileStreamWriter(dataChan, s)
+			go fileStreamWriter(dataChan, s)
 		} else {
-			fileWriter(dataChan, s)
+			go fileWriter(dataChan, s)
 		}
 	} else {
-		consoleWriter(dataChan, s)
+		go consoleWriter(dataChan, s)
 	}
-	return nil
+	return dr.Dump()
 }
 
 func consoleWriter(val <-chan ditreader.DumpedHash, s Settings) {
@@ -68,6 +69,9 @@ func consoleWriter(val <-chan ditreader.DumpedHash, s Settings) {
 				hs.WriteString(append.String())
 			}
 			hs.WriteString("\n")
+			if s.History {
+				hs.WriteString(dh.HistoryString())
+			}
 			//pts = dh.Supp.HashString() + "\n"
 		}
 		fmt.Print(hs.String())
@@ -114,7 +118,9 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
 				kerbs.WriteString(append.String())
 				kerbs.WriteString("\n")
 			}
-
+			if s.History {
+				hs.WriteString(dh.HistoryString())
+			}
 			//pts = dh.Supp.HashString() + "\n"
 			plaintext.WriteString(pts.String())
 		}

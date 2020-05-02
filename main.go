@@ -8,7 +8,7 @@ import (
 	"github.com/C-Sto/gosecretsdump/cmd"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 func main() {
 
@@ -26,6 +26,7 @@ func main() {
 	flag.BoolVar(&s.NoPrint, "noprint", false, "Don't print output to screen (probably use this with the -out flag)")
 	flag.BoolVar(&s.Stream, "stream", false, "Stream to files rather than writing in a block. Can be much slower.")
 	flag.BoolVar(&vers, "version", false, "Print version and exit")
+	flag.BoolVar(&s.History, "history", false, "Include Password History")
 	flag.Parse()
 
 	if vers {
@@ -35,7 +36,10 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	cmd.GoSecretsDump(s)
+	e := cmd.GoSecretsDump(s)
+	if e != nil {
+		panic(e)
+	}
 }
 
 //info dumped out of https://github.com/SecureAuthCorp/impacket/blob/master/impacket/examples/secretsdump.py

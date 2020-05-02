@@ -10,6 +10,10 @@ venv*
 *.7z
 *.pprof
 *.exe
-*.dit
+
 *SECURITY
-*SYSTEM
+/lib/*
+*.test
+*.prof
+*.out
+/test/python/*

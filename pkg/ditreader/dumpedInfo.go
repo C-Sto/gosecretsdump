@@ -83,6 +83,58 @@ type DumpedHash struct {
 	Enabled  bool
 	UAC      uacFlags
 	Supp     SuppInfo
+	History  PwdHistory
+}
+
+type PwdHistory struct {
+	LmHist [][]byte
+	NTHist [][]byte
+}
+
+func (d DumpedHash) HistoryStrings() []string {
+	r := make([]string, 0, len(d.History.NTHist))
+	for i, v := range d.History.LmHist {
+		r = append(r, fmt.Sprintf("%s_history%d:%s:%s:%s:::",
+			d.Username,
+			i,
+			d.Rid,
+			hex.EncodeToString(v),
+			hex.EncodeToString(emptyNT),
+		))
+	}
+	for i, v := range d.History.NTHist {
+		r = append(r, fmt.Sprintf("%s_history%d:%s:%s:%s:::",
+			d.Username,
+			i,
+			d.Rid,
+			hex.EncodeToString(emptyLM),
+			hex.EncodeToString(v),
+		))
+	}
+	return r
+}
+
+func (d DumpedHash) HistoryString() string {
+	r := strings.Builder{}
+	for i, v := range d.History.LmHist {
+		r.WriteString(fmt.Sprintf("%s_history%d:%s:%s:%s:::\n",
+			d.Username,
+			i,
+			d.Rid,
+			hex.EncodeToString(v),
+			hex.EncodeToString(emptyNT),
+		))
+	}
+	for i, v := range d.History.NTHist {
+		r.WriteString(fmt.Sprintf("%s_history%d:%s:%s:%s:::\n",
+			d.Username,
+			i,
+			d.Rid,
+			hex.EncodeToString(emptyLM),
+			hex.EncodeToString(v),
+		))
+	}
+	return r.String()
 }
 
 func (d DumpedHash) HashString() string {
