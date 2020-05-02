@@ -26,7 +26,7 @@ func BenchmarkProgram(t *testing.B) {
 		//dr := ditreader.New("../big/registry/SYSTEM", "../big/Active Directory/ntds.dit")
 		//handle any output
 		dataChan := dr.GetOutChan()
-
+		go dr.Dump()
 		for range dataChan {
 
 		}
