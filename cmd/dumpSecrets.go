@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/C-Sto/gosecretsdump/pkg/ditreader"
 )
@@ -26,20 +27,25 @@ func GoSecretsDump(s Settings) error {
 	}
 	//handle any output
 	dataChan := dr.GetOutChan()
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	if s.Outfile != "" {
-		fmt.Println("Writing to file ", s.Outfile)
+		fmt.Printf("Writing to file %s\n", s.Outfile)
 		if s.Stream {
-			go fileStreamWriter(dataChan, s)
+			go fileStreamWriter(dataChan, s, &wg)
 		} else {
-			go fileWriter(dataChan, s)
+			go fileWriter(dataChan, s, &wg)
 		}
 	} else {
-		go consoleWriter(dataChan, s)
+		go consoleWriter(dataChan, s, &wg)
 	}
-	return dr.Dump()
+	e := dr.Dump()
+	wg.Wait()
+	return e
 }
 
-func consoleWriter(val <-chan ditreader.DumpedHash, s Settings) {
+func consoleWriter(val <-chan ditreader.DumpedHash, s Settings, wg *sync.WaitGroup) {
+	defer wg.Done()
 	for dh := range val {
 		if s.EnabledOnly {
 			if dh.UAC.AccountDisable {
@@ -78,8 +84,8 @@ func consoleWriter(val <-chan ditreader.DumpedHash, s Settings) {
 	}
 }
 
-func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
-
+func fileWriter(val <-chan ditreader.DumpedHash, s Settings, wg *sync.WaitGroup) {
+	defer wg.Done()
 	//build up the data to eventually write
 	hashes := strings.Builder{}
 	plaintext := strings.Builder{}
@@ -151,7 +157,8 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings) {
 
 }
 
-func fileStreamWriter(val <-chan ditreader.DumpedHash, s Settings) {
+func fileStreamWriter(val <-chan ditreader.DumpedHash, s Settings, wg *sync.WaitGroup) {
+	defer wg.Done()
 	file, err := os.OpenFile(s.Outfile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
 		panic(err) //ok to panic here
