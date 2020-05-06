@@ -67,14 +67,16 @@ func consoleWriter(val <-chan ditreader.DumpedHash, s Settings, wg *sync.WaitGro
 		hs.WriteString(append.String())
 		hs.WriteString("\n")
 		if dh.Supp.Username != "" {
-			hs.WriteString(dh.Supp.ClearString())
-			hs.WriteString(append.String())
-			if len(dh.Supp.KerbKeys) > 0 {
+			if dh.Supp.ClearPassword != "" {
+				hs.WriteString(dh.Supp.ClearString())
+				hs.WriteString(append.String())
 				hs.WriteString("\n")
+			}
+			if len(dh.Supp.KerbKeys) > 0 {
 				hs.WriteString(dh.Supp.KerbString())
 				hs.WriteString(append.String())
+				hs.WriteString("\n")
 			}
-			hs.WriteString("\n")
 			if s.History {
 				hs.WriteString(dh.HistoryString())
 			}
@@ -113,12 +115,13 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings, wg *sync.WaitGroup)
 		hs.WriteString(dh.HashString())
 		hs.WriteString(append.String())
 		hs.WriteString("\n")
-		hashes.WriteString(hs.String())
 		var pts strings.Builder
 		if dh.Supp.Username != "" {
-			pts.WriteString(dh.Supp.ClearString())
-			pts.WriteString(append.String())
-			pts.WriteString("\n")
+			if dh.Supp.ClearPassword != "" {
+				pts.WriteString(dh.Supp.ClearString())
+				pts.WriteString(append.String())
+				pts.WriteString("\n")
+			}
 			if len(dh.Supp.KerbKeys) > 0 {
 				kerbs.WriteString(dh.Supp.KerbString())
 				kerbs.WriteString(append.String())
