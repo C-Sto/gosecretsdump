@@ -21,7 +21,7 @@ type SystemReader struct {
 func New(s string) (SystemReader, error) {
 	var err error
 	r := SystemReader{systemLoc: s}
-	r.registry, err = winregistry.WinregRegistry{}.Init(s, false)
+	r.registry, err = winregistry.WinregRegistry{}.Init(s)
 	return r, err
 }
 

@@ -18,7 +18,8 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	if err != nil {
 		return dh, err
 	}
-	dh.Rid = sid.FormatCanonical()[strings.LastIndex(sid.FormatCanonical(), "-")+1:]
+	//dh.Rid = sid.FormatCanonical()[strings.LastIndex(sid.FormatCanonical(), "-")+1:]
+	dh.Rid = sid.Rid()
 
 	//lm hash
 	if v, err := record.StrVal(ndBCSPwd); err != nil && len(v) > 0 {
@@ -32,7 +33,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		if bytes.Compare(encryptedLM.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
 			encryptedLMW := NewCryptedHashW16(b)
 			pekIndex := encryptedLMW.Header
-			tmpLM, err = decryptAES(d.pek[pekIndex[4]], encryptedLMW.EncryptedHash[:16], encryptedLMW.KeyMaterial[:])
+			tmpLM, err = DecryptAES(d.pek[pekIndex[4]], encryptedLMW.EncryptedHash[:16], encryptedLMW.KeyMaterial[:])
 			if err != nil {
 				return dh, err
 			}
@@ -42,13 +43,13 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 				return dh, err
 			}
 		}
-		dh.LMHash, err = removeDES(tmpLM, dh.Rid)
+		dh.LMHash, err = RemoveDES(tmpLM, dh.Rid)
 		if err != nil {
 			return dh, err
 		}
 	} else {
 		//hard coded empty lm hash
-		dh.LMHash = emptyLM //, _ = hex.DecodeString("aad3b435b51404eeaad3b435b51404ee")
+		dh.LMHash = EmptyLM //, _ = hex.DecodeString("aad3b435b51404eeaad3b435b51404ee")
 	}
 
 	//nt hash
@@ -61,7 +62,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		if bytes.Compare(encryptedNT.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
 			encryptedNTW := NewCryptedHashW16(v)
 			pekIndex := encryptedNTW.Header
-			tmpNT, err = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncryptedHash[:16], encryptedNTW.KeyMaterial[:])
+			tmpNT, err = DecryptAES(d.pek[pekIndex[4]], encryptedNTW.EncryptedHash[:16], encryptedNTW.KeyMaterial[:])
 			if err != nil {
 				return dh, err
 			}
@@ -71,13 +72,13 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 				return dh, err
 			}
 		}
-		dh.NTHash, err = removeDES(tmpNT, dh.Rid)
+		dh.NTHash, err = RemoveDES(tmpNT, dh.Rid)
 		if err != nil {
 			return dh, err
 		}
 	} else {
 		//hard coded empty NTLM hash
-		dh.NTHash = emptyNT //, _ = hex.DecodeString("31D6CFE0D16AE931B73C59D7E0C089C0")
+		dh.NTHash = EmptyNT //, _ = hex.DecodeString("31D6CFE0D16AE931B73C59D7E0C089C0")
 	}
 
 	//username
@@ -105,7 +106,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 
 			for i := 16; i < len(tmphst); i += 16 {
 				hst1 := tmphst[i : i+16]
-				hst2, err := removeDES(hst1, dh.Rid)
+				hst2, err := RemoveDES(hst1, dh.Rid)
 				dh.History.LmHist = append(dh.History.LmHist, hst2)
 				if err != nil {
 					return dh, err
@@ -124,7 +125,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		if bytes.Compare(ch.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
 			encryptedNTW := NewCryptedHashW16History(v)
 			pekIndex := encryptedNTW.Header
-			tmphst, err = decryptAES(d.pek[pekIndex[4]], encryptedNTW.EncryptedHash[:], encryptedNTW.KeyMaterial[:])
+			tmphst, err = DecryptAES(d.pek[pekIndex[4]], encryptedNTW.EncryptedHash[:], encryptedNTW.KeyMaterial[:])
 			if err != nil {
 				return dh, err
 			}
@@ -136,7 +137,7 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		}
 		for i := 16; i < len(tmphst); i += 16 {
 			hst1 := tmphst[i : i+16]
-			hst2, err := removeDES(hst1, dh.Rid)
+			hst2, err := RemoveDES(hst1, dh.Rid)
 			if err != nil {
 				return dh, err
 			}
@@ -187,7 +188,7 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 		if bytes.Compare(ct.Header[:4], []byte{0x13, 0, 0, 0}) == 0 {
 			//fmt.Println("TODO: WINDOWS 2016 SUPP DATA FOR PLAINTEXT")
 			pekIndex := binary.LittleEndian.Uint16(ct.Header[4:6])
-			plainBytes, err = decryptAES(d.pek[pekIndex],
+			plainBytes, err = DecryptAES(d.pek[pekIndex],
 				ct.EncryptedHash[4:],
 				ct.KeyMaterial[:])
 			if err != nil {

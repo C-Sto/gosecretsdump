@@ -159,6 +159,11 @@ func (s SAMRRPCSID) FormatCanonical() string {
 	return ans.String()
 }
 
+func (s SAMRRPCSID) Rid() uint32 {
+	l := s.SubAuthorityCount
+	return binary.BigEndian.Uint32(s.SubAuthority[(l-1)*4 : (l-1)*4+4])
+}
+
 func NewSAMRRPCSID(data []byte) (SAMRRPCSID, error) {
 	r := SAMRRPCSID{}
 	if len(data) < 6 {

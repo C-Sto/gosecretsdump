@@ -154,7 +154,7 @@ func (w WinregRegistry) findRootKey() (reg_blockStruct, error) {
 	return reg_blockStruct{}, errors.New("Couldn't Find Root NK")
 }
 
-func (w WinregRegistry) Init(s string, b bool) (WinregRegistry, error) {
+func (w WinregRegistry) Init(s string) (WinregRegistry, error) {
 
 	f, err := os.Open(s)
 	if err != nil {
@@ -382,6 +382,41 @@ type reg_hash struct {
 	KeyName  [4]byte
 }
 
+func (w WinregRegistry) enumKey(parent reg_blockStruct) (r []string, err error) {
+	if parent.NumSubKeys < 1 {
+		return
+	}
+
+	lf, err := w.getBlock(parent.OffsetSubKeyLf)
+	data := lf.HashRecords
+
+	if bytes.Compare(lf.Magic[:], []byte("ri")) == 0 {
+		return r, fmt.Errorf("Not yet implemented: RI registry")
+	}
+	for i := uint32(0); i < parent.NumSubKeys; i++ {
+		hashRec := reg_hash{}
+		err := binary.Read(bytes.NewBuffer(data[:8]), binary.LittleEndian, &hashRec)
+		if err != nil {
+			panic(err)
+		}
+		nk, err := w.getBlock(hashRec.OffsetNk)
+		if err != nil {
+			return r, err
+		}
+		r = append(r, string(nk.KeyName))
+		data = data[8:]
+	}
+	return
+}
+
+func (w WinregRegistry) EnumKeys(s string) (r []string, err error) {
+	f, err := w.findKey(s)
+	if err != nil {
+		return r, err
+	}
+	return w.enumKey(f)
+}
+
 func (w WinregRegistry) findSubKey(parKey reg_blockStruct, subkey string) (reg_blockStruct, error) {
 	lf, err := w.getBlock(parKey.OffsetSubKeyLf)
 	if err != nil {
@@ -410,11 +445,9 @@ func (w WinregRegistry) findSubKey(parKey reg_blockStruct, subkey string) (reg_b
 }
 
 func (w WinregRegistry) findKey(s string) (reg_blockStruct, error) {
-
 	if len(s) > 1 && string(s[0]) == "\\" {
 		s = s[1:]
 	}
-
 	parentKey := w.rootKey
 	if len(s) > 0 && string(s[0]) != "\\" {
 		for _, subKey := range strings.Split(s, "\\") {
@@ -475,7 +508,8 @@ func (w WinregRegistry) GetVal(s string) (uint32, []byte, error) {
 
 	valueList := w.getValBlocks(key.OffsetValueList, key.NumValues)
 	for _, val := range valueList {
-		if strings.Replace(string(val.Name), "\x00", "", -1) == regValue {
+		name := string(val.Name[:val.NameLength])
+		if name == regValue {
 			return val.ValueType, w.getValData(val), nil
 		} else if regValue == "default" && val.Flag <= 0 {
 			return val.ValueType, w.getValData(val), nil
