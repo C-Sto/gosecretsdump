@@ -29,5 +29,11 @@ jobs:
           repository: c-sto/ntds_reference
           ref: master
           path: ./src/github.com/${{ github.repository }}/test/
+      - name: Vet on windows
+        run: GOOS=windows go vet
+      - name: Vet on darwin
+        run: GOOS=darwin go vet
+      - name: Vet on linux
+        run: GOOS=linux go vet
       - name: Run tests
         run: go test ./...
