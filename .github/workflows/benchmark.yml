@@ -22,4 +22,4 @@ jobs:
         with:
           path: ./src/github.com/${{ github.repository }}
       - name: Run benchmark
-        run: cd test/bench && go test -bench=. -benchtime=30s | tee output.txt
+        run: go test ./...
