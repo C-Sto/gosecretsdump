@@ -2,6 +2,8 @@ package samreader
 
 import (
 	"bytes"
+	"crypto/md5"
+	"crypto/rc4"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -154,9 +156,36 @@ func (d SamReader) SysKey() []byte {
 			panic(e)
 		}
 		return b[:16]
+	} else if f.Revision == 2 {
+		rc4struct := SAMKeyData{}
+		binary.Read(bytes.NewReader(f.Data), binary.LittleEndian, &rc4struct)
+		hashdata := append(rc4struct.Salt[:], qwertyconst...)
+		hashdata = append(hashdata, d.bootKey...)
+		hashdata = append(hashdata, digitconst...)
+		rc4Key := md5.Sum(hashdata)
+		rc4life, e := rc4.NewCipher(rc4Key[:])
+		if e != nil {
+			panic(e)
+		}
+		d := make([]byte, 32)
+		rc4life.XORKeyStream(d, append(rc4struct.Key[:], rc4struct.Checksum[:]...))
+		//todo do checksum
+		//impacket:
+		/*
+		   # Verify key with checksum
+		   checkSum = self.MD5( self.__hashedBootKey[:16] + DIGITS + self.__hashedBootKey[:16] + QWERTY)
+		   if checkSum != self.__hashedBootKey[16:]:
+		       raise Exception('hashedBootKey CheckSum failed, Syskey startup password probably in use! :(')
+		*/
+		return d[:16]
+	} else {
+		panic("not yet implemented")
 	}
 	return r
 }
+
+var qwertyconst = []byte("!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%\x00")
+var digitconst = []byte("0123456789012345678901234567890123456789\x00")
 
 func (d SamReader) parseV(i uint32) (User_Account_V, error) {
 	var err error
@@ -251,6 +280,12 @@ type SAMHashAESInfo struct {
 	Salt       [16]byte
 }
 
+type SAMHash struct {
+	PekID    uint16
+	Revision uint16
+	Hash     [16]byte
+}
+
 func NewSamHashAES(b []byte) SAMHashAES {
 	br := bytes.NewReader(b)
 	r := SAMHashAES{}
@@ -282,7 +317,13 @@ func (d SamReader) Dump() error {
 				data = []byte{}
 			}
 		} else {
-			return fmt.Errorf("Not yet implemented")
+			if v.NTLMHash.Length == 20 {
+				sh := SAMHash{}
+				binary.Read(bytes.NewReader(data), binary.LittleEndian, &sh)
+				data = sh.Hash[:]
+			} else {
+				data = []byte{}
+			}
 		}
 		ntlmplain := ditreader.EmptyNT
 		if len(data) > 0 {

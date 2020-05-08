@@ -305,6 +305,8 @@ func (b reg_blockStruct) Init(data []byte) (reg_blockStruct, error) {
 		data = data[2:]
 		ret.KeyName = data[:ret.NameLength]
 
+	case "lf":
+		fallthrough
 	case "lh":
 		ret.NumKeys = binary.LittleEndian.Uint16(data[:2])
 		ret.HashRecords = data[2:]
@@ -357,7 +359,10 @@ func (w WinregRegistry) compareHash(magic [2]byte, hashData []byte, key string) 
 	}
 	switch string(magic[:]) {
 	case "lf":
-		if string(hashRec.KeyName[:]) == key[:4] { //strip \x00?
+		for len(key) < 4 {
+			key = key + "\x00"
+		}
+		if string(hashRec.KeyName[:4]) == key[:4] { //strip \x00?
 			return hashRec.OffsetNk, nil
 		}
 	case "lh": //ZZZZZ GETLHHASH IS WRONG?
@@ -422,13 +427,13 @@ func (w WinregRegistry) EnumKeys(s string) (r []string, err error) {
 
 func (w WinregRegistry) findSubKey(parKey reg_blockStruct, subkey string) (reg_blockStruct, error) {
 	lf, err := w.getBlock(parKey.OffsetSubKeyLf)
+
 	if err != nil {
 		return reg_blockStruct{}, err
 	}
 	data := make([]byte, len(lf.HashRecords))
 	copy(data, lf.HashRecords)
 	if string(lf.Magic[:]) == "ri" {
-		//fmt.Println("DO FIND SUBKEY RI STUFF?")
 		return reg_blockStruct{}, fmt.Errorf("Not implemented: registry RI subkey")
 	}
 	for record := uint32(0); record < parKey.NumSubKeys; record++ {
@@ -509,7 +514,7 @@ func (w WinregRegistry) GetVal(s string) (uint32, []byte, error) {
 	//we are here in py version
 	//        if key['NumValues'] > 0:
 
-	valueList := w.getValBlocks(key.OffsetValueList, key.NumValues)
+	valueList := w.getValBlocks(key.OffsetValueList, key.NumValues+1)
 	for _, val := range valueList {
 		name := string(val.Name[:val.NameLength])
 		if name == regValue {
@@ -539,14 +544,14 @@ func (w WinregRegistry) getData(offset, len int32) []byte {
 	return d[4:] //not entirely sure why dropping the first 4 bytes, but ok
 }
 
-func (w WinregRegistry) GetClass(s string) []byte {
+func (w WinregRegistry) GetClass(s string) ([]byte, error) {
 	key, err := w.findKey(s)
 	if err != nil {
-		return []byte{}
+		return []byte{}, err
 	}
 	if key.OffsetClassName > 0 {
 		val, _ := w.getBlock(key.OffsetClassName)
-		return val.Data[:key.ClassNameLength]
+		return val.Data[:key.ClassNameLength], nil
 	}
-	return []byte{}
+	return []byte{}, fmt.Errorf("Class name not found?")
 }

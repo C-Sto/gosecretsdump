@@ -40,12 +40,14 @@ func (l *SystemReader) BootKey() []byte {
 	if e != nil {
 		panic(e)
 	}
+	if len(b) == 0 {
+		panic("NO BOOTKEY?")
+	}
 	return b
 }
 
 func (l *SystemReader) getBootKey() (bk []byte, err error) {
 	tmpKey := ""
-	//winreg := winregistry.WinregRegistry{}.Init(l.systemLoc, false)
 	//get control set
 	_, bcurrentControlset, err := l.registry.GetVal("\\Select\\Current")
 	if err != nil {
@@ -53,7 +55,10 @@ func (l *SystemReader) getBootKey() (bk []byte, err error) {
 	}
 	currentControlset := fmt.Sprintf("ControlSet%03d", binary.LittleEndian.Uint32(bcurrentControlset))
 	for _, k := range []string{"JD", "Skew1", "GBG", "Data"} {
-		ans := l.registry.GetClass(fmt.Sprintf("\\%s\\Control\\Lsa\\%s", currentControlset, k))
+		ans, e := l.registry.GetClass(fmt.Sprintf("\\%s\\Control\\Lsa\\%s", currentControlset, k))
+		if e != nil {
+			return []byte{}, e
+		}
 		tmpKey = tmpKey + string(ans)
 	}
 	if len(tmpKey) > 32 {
@@ -68,7 +73,6 @@ func (l *SystemReader) getBootKey() (bk []byte, err error) {
 	for i := 0; i < len(unhexedKey); i++ {
 		bk = append(bk, unhexedKey[transforms[i]])
 	}
-	//fmt.Println("Target system bootkey: ", "0x"+hex.EncodeToString(bk))
 	l.bootKey = bk
 	return bk, nil
 }
