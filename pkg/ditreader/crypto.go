@@ -80,7 +80,7 @@ func (d DitReader) removeRC4(c CryptedHash) ([]byte, error) {
 //NewCryptedHash creates a CryptedHash object containing key material and encrypted content.
 func NewCryptedHash(inData []byte) (CryptedHash, error) {
 	if len(inData) < 16 {
-		return CryptedHash{}, fmt.Errorf("Invalid crypted hash length. Expected x>16, got x=", len(inData))
+		return CryptedHash{}, fmt.Errorf("Invalid crypted hash length. Expected x>16, got x=%d", len(inData))
 	}
 	cursor := 0
 	r := CryptedHash{}
