@@ -1,7 +1,9 @@
   
 name: Test
 on:
-  watch:
+  push:
+    branches: 
+      - master
   pull_request:
     branches:
       - master
