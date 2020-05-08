@@ -1,6 +1,7 @@
   
 name: Test
 on:
+  watch:
   pull_request:
     branches:
       - master
@@ -21,5 +22,9 @@ jobs:
       - uses: actions/checkout@v1
         with:
           path: ./src/github.com/${{ github.repository }}
+      - uses: actions/checkout@v1
+        with:
+          repository: c-sto/ntds_reference
+          path: ./src/github.com/${{ github.repository }}/test/
       - name: Run benchmark
         run: go test ./...
