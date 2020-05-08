@@ -9,8 +9,8 @@ on:
       - master
 
 jobs:
-  benchmark:
-    name: Run Go benchmark
+  test:
+    name: Run Go Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-go@v1
