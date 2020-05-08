@@ -8,7 +8,7 @@ import (
 	"github.com/C-Sto/gosecretsdump/cmd"
 )
 
-const version = "SAMTEST"
+const version = "0.3.0"
 
 func main() {
 
