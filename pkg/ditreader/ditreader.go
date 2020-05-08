@@ -93,7 +93,7 @@ func (d DitReader) GetOutChan() <-chan DumpedHash {
 	return d.userData
 }
 
-func (d *DitReader) Dump() error {
+func (d DitReader) Dump() error {
 	//if local (always local for now)
 	if d.systemHiveLocation != "" {
 		ls, err := systemreader.New(d.systemHiveLocation)
@@ -226,7 +226,7 @@ func (d *DitReader) getPek() ([][]byte, error) {
 				# CipherText: PEKLIST_ENC['EncryptedPek']
 				# IV: PEKLIST_ENC['KeyMaterial']
 			*/
-			ePek, err := decryptAES(d.bootKey, encryptedPekList.EncryptedPek, encryptedPekList.KeyMaterial[:])
+			ePek, err := DecryptAES(d.bootKey, encryptedPekList.EncryptedPek, encryptedPekList.KeyMaterial[:])
 			if err != nil {
 				return nil, err
 			}

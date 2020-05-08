@@ -7,11 +7,20 @@ import (
 	"sync"
 
 	"github.com/C-Sto/gosecretsdump/pkg/ditreader"
+	"github.com/C-Sto/gosecretsdump/pkg/samreader"
 )
+
+type Dumper interface {
+	//New(string, string) (Dumper, error)
+	GetOutChan() <-chan ditreader.DumpedHash
+	Dump() error
+}
 
 type Settings struct {
 	SystemLoc   string
 	NTDSLoc     string
+	SAMLoc      string
+	LiveSAM     bool
 	Status      bool
 	EnabledOnly bool
 	Outfile     string
@@ -21,10 +30,29 @@ type Settings struct {
 }
 
 func GoSecretsDump(s Settings) error {
-	dr, err := ditreader.New(s.SystemLoc, s.NTDSLoc)
-	if err != nil {
-		return err
+	var dr Dumper
+	var err error
+	if s.NTDSLoc != "" {
+		dr, err = ditreader.New(s.SystemLoc, s.NTDSLoc)
+		if err != nil {
+			return err
+		}
 	}
+
+	if s.SAMLoc != "" {
+		dr, err = samreader.New(s.SystemLoc, s.SAMLoc)
+		if err != nil {
+			return err
+		}
+	}
+
+	if s.LiveSAM {
+		dr, err = samreader.NewLive()
+		if err != nil {
+			return err
+		}
+	}
+
 	//handle any output
 	dataChan := dr.GetOutChan()
 	wg := sync.WaitGroup{}
@@ -40,6 +68,9 @@ func GoSecretsDump(s Settings) error {
 		go consoleWriter(dataChan, s, &wg)
 	}
 	e := dr.Dump()
+	if e != nil {
+		return e
+	}
 	wg.Wait()
 	return e
 }
@@ -137,26 +168,32 @@ func fileWriter(val <-chan ditreader.DumpedHash, s Settings, wg *sync.WaitGroup)
 		//fmt.Print(hs.String() + pts.String())
 	}
 
-	file, err := os.OpenFile(s.Outfile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
-	if err != nil {
-		panic(err) //ok to panic here
+	if hashes.Len() > 0 {
+		file, err := os.OpenFile(s.Outfile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
+		if err != nil {
+			panic(err) //ok to panic here
+		}
+		defer file.Close()
+		file.WriteString(hashes.String())
 	}
-	defer file.Close()
-	file.WriteString(hashes.String())
 
-	ctfile, err := os.OpenFile(s.Outfile+".cleartext", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
-	if err != nil {
-		panic(err) //ok to panic here
+	if plaintext.Len() > 0 {
+		ctfile, err := os.OpenFile(s.Outfile+".cleartext", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
+		if err != nil {
+			panic(err) //ok to panic here
+		}
+		defer ctfile.Close()
+		ctfile.WriteString(plaintext.String())
 	}
-	defer ctfile.Close()
-	ctfile.WriteString(plaintext.String())
 
-	krbfile, err := os.OpenFile(s.Outfile+".kerb", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
-	if err != nil {
-		panic(err)
+	if kerbs.Len() > 0 {
+		krbfile, err := os.OpenFile(s.Outfile+".kerb", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
+		if err != nil {
+			panic(err)
+		}
+		defer krbfile.Close()
+		krbfile.WriteString(kerbs.String())
 	}
-	defer krbfile.Close()
-	krbfile.WriteString(kerbs.String())
 
 }
 

@@ -8,18 +8,17 @@ import (
 	"crypto/rc4"
 	"encoding/binary"
 	"fmt"
-	"strconv"
 )
 
-func removeDES(b []byte, rid string) ([]byte, error) {
+func RemoveDES(b []byte, rid uint32) ([]byte, error) {
 	if len(b) < 8 {
 		return nil, fmt.Errorf("Des ciphertext not long enough. Expected x>8, got x=%d", len(b))
 	}
-	ridI, err := strconv.Atoi(rid)
-	if err != nil {
-		return nil, err
-	}
-	k1, k2 := deriveKey(ridI)
+	// //ridI, err := strconv.Atoi(rid)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	k1, k2 := DeriveKey(rid)
 	c1, err := des.NewCipher(k1)
 	if err != nil {
 		return nil, err
@@ -36,7 +35,7 @@ func removeDES(b []byte, rid string) ([]byte, error) {
 	return append(p1, p2...), nil
 }
 
-func deriveKey(baseKey int) (k1, k2 []byte) {
+func DeriveKey(baseKey uint32) (k1, k2 []byte) {
 	key := make([]byte, 4)
 	binary.LittleEndian.PutUint32(key, uint32(baseKey))
 	key1 := []byte{
@@ -81,7 +80,7 @@ func (d DitReader) removeRC4(c CryptedHash) ([]byte, error) {
 //NewCryptedHash creates a CryptedHash object containing key material and encrypted content.
 func NewCryptedHash(inData []byte) (CryptedHash, error) {
 	if len(inData) < 16 {
-		return CryptedHash{}, fmt.Errorf("Invalid crypted hash length. Expected x>16, got x=", len(inData))
+		return CryptedHash{}, fmt.Errorf("Invalid crypted hash length. Expected x>16, got x=%d", len(inData))
 	}
 	cursor := 0
 	r := CryptedHash{}
@@ -99,7 +98,7 @@ type CryptedHash struct {
 	EncryptedHash []byte
 }
 
-func decryptAES(key, value, iv []byte) ([]byte, error) {
+func DecryptAES(key, value, iv []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
