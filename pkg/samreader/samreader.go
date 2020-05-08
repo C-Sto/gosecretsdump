@@ -10,6 +10,7 @@ import (
 
 	"github.com/C-Sto/gosecretsdump/pkg/systemreader"
 	"github.com/C-Sto/gosecretsdump/pkg/winregistry"
+	"golang.org/x/text/encoding/unicode"
 
 	"github.com/C-Sto/gosecretsdump/pkg/ditreader"
 )
@@ -25,8 +26,7 @@ func New(system, sam string) (SamReader, error) {
 		userData: make(chan ditreader.DumpedHash, 500),
 	}
 	var err error
-	r.registry, err = winregistry.WinregRegistry{}.Init(sam)
-
+	r.registry, err = winregistry.InitOffline(sam)
 	if r.systemHiveLocation != "" {
 		ls, err := systemreader.New(r.systemHiveLocation)
 		if err != nil {
@@ -37,7 +37,24 @@ func New(system, sam string) (SamReader, error) {
 	} else {
 		return r, fmt.Errorf("System hive empty")
 	}
+	return r, err
+}
 
+func NewLive() (SamReader, error) {
+	r := SamReader{
+		noLMHash:  true,
+		remoteOps: "",
+		userData:  make(chan ditreader.DumpedHash, 500),
+	}
+	var err error
+	r.registry, err = winregistry.InitLive("SAM")
+
+	ls, err := systemreader.NewLive()
+	if err != nil {
+		return r, err
+	}
+	r.bootKey = ls.BootKey()
+	r.noLMHash = ls.HasNoLMHashPolicy()
 	return r, err
 }
 
@@ -48,7 +65,7 @@ type SamReader struct {
 	remoteOps          string
 	samLoc             string
 	systemHiveLocation string
-	registry           winregistry.WinregRegistry
+	registry           winregistry.WinRegIF
 	userData           chan ditreader.DumpedHash
 }
 
@@ -126,14 +143,16 @@ func (d SamReader) SysKey() []byte {
 	if err != nil {
 		panic(err)
 	}
-
 	f := NewF(fraw)
 	if f.Revision == 3 {
 		aesStruct := SAMKeyDataAES{}
 		binary.Read(bytes.NewReader(f.Data), binary.LittleEndian, &aesStruct)
 		iv := aesStruct.Salt[:]
 		cipher := aesStruct.Data[:aesStruct.DataLen]
-		b, _ := ditreader.DecryptAES(d.bootKey, cipher, iv)
+		b, e := ditreader.DecryptAES(d.bootKey, cipher, iv)
+		if e != nil {
+			panic(e)
+		}
 		return b[:16]
 	}
 	return r
@@ -185,6 +204,15 @@ type SAMEntries struct {
 	LMHistory SAMEntry
 }
 
+func (u User_Account_V) UsernameString() string {
+	ud := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
+	b, e := ud.Bytes(u.Username.GetData(u.Data))
+	if e != nil {
+		return string(u.Username.GetData(u.Data))
+	}
+	return string(b)
+}
+
 func newV(d []byte) User_Account_V {
 	r := User_Account_V{}
 	rd := bytes.NewReader(d)
@@ -208,7 +236,6 @@ func (d SamReader) GetRids() ([]uint32, error) {
 		}
 		r = append(r, binary.BigEndian.Uint32(b))
 	}
-
 	return r, nil
 }
 
@@ -265,7 +292,7 @@ func (d SamReader) Dump() error {
 			}
 		}
 		d.userData <- ditreader.DumpedHash{
-			Username: string(v.Username.GetData(v.Data)),
+			Username: v.UsernameString(),
 			LMHash:   ditreader.EmptyLM,
 			NTHash:   ntlmplain,
 			Rid:      rid,

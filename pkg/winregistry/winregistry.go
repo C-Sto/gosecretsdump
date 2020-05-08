@@ -154,8 +154,11 @@ func (w WinregRegistry) findRootKey() (reg_blockStruct, error) {
 	return reg_blockStruct{}, errors.New("Couldn't Find Root NK")
 }
 
-func (w WinregRegistry) Init(s string) (WinregRegistry, error) {
+type WinRegLive struct {
+	BaseKey string
+}
 
+func InitOffline(s string) (WinRegIF, error) {
 	f, err := os.Open(s)
 	if err != nil {
 		return WinregRegistry{}, err
@@ -543,7 +546,7 @@ func (w WinregRegistry) GetClass(s string) []byte {
 	}
 	if key.OffsetClassName > 0 {
 		val, _ := w.getBlock(key.OffsetClassName)
-		return val.Data
+		return val.Data[:key.ClassNameLength]
 	}
 	return []byte{}
 }

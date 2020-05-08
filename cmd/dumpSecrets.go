@@ -20,6 +20,7 @@ type Settings struct {
 	SystemLoc   string
 	NTDSLoc     string
 	SAMLoc      string
+	LiveSAM     bool
 	Status      bool
 	EnabledOnly bool
 	Outfile     string
@@ -40,6 +41,13 @@ func GoSecretsDump(s Settings) error {
 
 	if s.SAMLoc != "" {
 		dr, err = samreader.New(s.SystemLoc, s.SAMLoc)
+		if err != nil {
+			return err
+		}
+	}
+
+	if s.LiveSAM {
+		dr, err = samreader.NewLive()
 		if err != nil {
 			return err
 		}

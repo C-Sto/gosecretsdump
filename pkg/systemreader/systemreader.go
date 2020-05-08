@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"strings"
 
 	"github.com/C-Sto/gosecretsdump/pkg/winregistry"
 	"golang.org/x/text/encoding/unicode"
@@ -14,58 +13,64 @@ import (
 type SystemReader struct {
 	systemLoc string
 	bootKey   []byte
-	registry  winregistry.WinregRegistry
+	registry  winregistry.WinRegIF
 }
 
 //New creates a new SystemReader pointing at the specified file.
 func New(s string) (SystemReader, error) {
 	var err error
 	r := SystemReader{systemLoc: s}
-	r.registry, err = winregistry.WinregRegistry{}.Init(s)
+	r.registry, err = winregistry.InitOffline(s)
+	return r, err
+}
+
+func NewLive() (SystemReader, error) {
+	r := SystemReader{}
+	var err error
+	r.registry, err = winregistry.InitLive("SYSTEM")
+	if err != nil {
+		return r, err
+	}
 	return r, err
 }
 
 //BootKey returns the bootkey extracted from the SYSTEM file
-func (l SystemReader) BootKey() []byte {
-	if len(l.bootKey) < 1 {
-		l.getBootKey()
+func (l *SystemReader) BootKey() []byte {
+	b, e := l.getBootKey()
+	if e != nil {
+		panic(e)
 	}
-	return l.bootKey
+	return b
 }
 
-func (l *SystemReader) getBootKey() error {
-	bk := []byte{}
+func (l *SystemReader) getBootKey() (bk []byte, err error) {
 	tmpKey := ""
 	//winreg := winregistry.WinregRegistry{}.Init(l.systemLoc, false)
 	//get control set
 	_, bcurrentControlset, err := l.registry.GetVal("\\Select\\Current")
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	currentControlset := fmt.Sprintf("ControlSet%03d", binary.LittleEndian.Uint32(bcurrentControlset))
 	for _, k := range []string{"JD", "Skew1", "GBG", "Data"} {
 		ans := l.registry.GetClass(fmt.Sprintf("\\%s\\Control\\Lsa\\%s", currentControlset, k))
+		tmpKey = tmpKey + string(ans)
+	}
+	if len(tmpKey) > 32 {
 		ud := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
-		nansLen := 16
-		if len(ans) < 16 {
-			nansLen = len(ans)
-		}
-		digit := make([]byte, len(ans[:nansLen])/2)
-		ud.Transform(digit, ans[:16], false)
-		tmpKey = tmpKey + strings.Replace(string(digit), "\x00", "", -1)
+		tmpKey, _ = ud.String(tmpKey)
 	}
 	transforms := []int{8, 5, 4, 2, 11, 9, 13, 3, 0, 6, 1, 12, 14, 10, 15, 7}
 	unhexedKey, err := hex.DecodeString(tmpKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for i := 0; i < len(unhexedKey); i++ {
 		bk = append(bk, unhexedKey[transforms[i]])
 	}
 	//fmt.Println("Target system bootkey: ", "0x"+hex.EncodeToString(bk))
 	l.bootKey = bk
-	return nil
+	return bk, nil
 }
 
 //HasNoLMHashPolicy returns true if no LM hashes are allowed per the SYSTEM file. A False response indicates that LM hashes may exist within the domain/machine.

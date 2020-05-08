@@ -8,7 +8,7 @@ import (
 	"github.com/C-Sto/gosecretsdump/cmd"
 )
 
-const version = "0.2.2"
+const version = "SAMTEST"
 
 func main() {
 
@@ -22,6 +22,7 @@ func main() {
 	flag.StringVar(&s.NTDSLoc, "ntds", "", "Location of the NTDS file (required)")
 	flag.StringVar(&s.SystemLoc, "system", "", "Location of the SYSTEM file (required)")
 	flag.StringVar(&s.SAMLoc, "sam", "", "Location of SAM registry hive")
+	flag.BoolVar(&s.LiveSAM, "livesam", false, "Get hashes from live system. Only works on local machine hashes (SAM), only works on Windows.")
 	flag.BoolVar(&s.Status, "status", false, "Include status in hash output")
 	flag.BoolVar(&s.EnabledOnly, "enabled", false, "Only output enabled accounts")
 	flag.BoolVar(&s.NoPrint, "noprint", false, "Don't print output to screen (probably use this with the -out flag)")
@@ -33,7 +34,7 @@ func main() {
 	if vers {
 		os.Exit(0)
 	}
-	if s.SystemLoc == "" || (s.NTDSLoc == "" && s.SAMLoc == "") {
+	if s.SystemLoc == "" && (s.NTDSLoc == "" && s.SAMLoc == "") && !s.LiveSAM {
 		flag.Usage()
 		os.Exit(1)
 	}
