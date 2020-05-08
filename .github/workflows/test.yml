@@ -29,5 +29,5 @@ jobs:
           repository: c-sto/ntds_reference
           ref: master
           path: ./src/github.com/${{ github.repository }}/test/
-      - name: Run benchmark
+      - name: Run tests
         run: go test ./...
