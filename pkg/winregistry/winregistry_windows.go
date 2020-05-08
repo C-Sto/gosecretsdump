@@ -32,11 +32,11 @@ func (l LiveReg) GetVal(path string) (regtype uint32, val []byte, err error) {
 	return regtype, buff, err
 }
 
-func (l LiveReg) GetClass(path string) (r []byte) {
+func (l LiveReg) GetClass(path string) (r []byte, err error) {
 	//welp
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, l.BasePath+path, 0x19)
 	if err != nil {
-		panic("No")
+		return []byte{}, err
 	}
 	defer k.Close()
 
@@ -60,9 +60,9 @@ func (l LiveReg) GetClass(path string) (r []byte) {
 		&ki.MaxValueNameLen, &ki.MaxValueLen, &ki.SaLen, &ki.lastWriteTime)
 
 	if err != nil {
-		panic(err)
+		return []byte{}, err
 	}
-	return []byte(syscall.UTF16ToString(back))
+	return []byte(syscall.UTF16ToString(back)), nil
 }
 
 func (l LiveReg) EnumKeys(path string) (subkeys []string, err error) {
