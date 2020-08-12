@@ -93,3 +93,14 @@ ROUTINE ======================== github.com/c-sto/gosecretsdump/pkg/esent.(*Esed
          .          .     55:   }
 (pprof) 
 ```
+
+# Go versions
+
+To benchmark against different versions of Go (to see the difference between each major(?) version), we can pull older versions with:
+```
+for x in $(seq 8 13); do go get "golang.org/dl/go1.$x"; eval "go1.$x download"; done
+```
+Then complete the benchmarks with something like:
+```
+for x in {15..8..1}; do echo "Testing 1.$x"; eval "go1.$x test -bench=. -benchtime=200x"; done
+```
