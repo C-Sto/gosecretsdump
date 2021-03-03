@@ -382,7 +382,7 @@ func (w WinregRegistry) getLhHash(key string) uint32 {
 		res += int(b)
 	}
 
-	return uint32(res % 0x100000000)
+	return uint32(int64(res) % 0x100000000)
 }
 
 type reg_hash struct {
