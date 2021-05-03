@@ -13,15 +13,12 @@ jobs:
     name: Run Go Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-go@v1
-      - name: Set GOPATH
-        # temporary fix
-        # see https://github.com/actions/setup-go/issues/14
-        run: |
-          echo "##[set-env name=GOPATH;]$(dirname $GITHUB_WORKSPACE)"
-          echo "##[add-path]$(dirname $GITHUB_WORKSPACE)/bin"
-        shell: bash
-      - uses: actions/checkout@v1
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.15
+
+      - uses: actions/checkout@v2
         with:
           path: ./src/github.com/${{ github.repository }}
       - uses: actions/checkout@v1
