@@ -27,10 +27,10 @@ jobs:
           ref: master
           path: ./src/github.com/${{ github.repository }}/test/
       - name: Vet on windows
-        run: GOOS=windows go vet
+        run: cd ./src/github.com/${{ github.repository }} ; GOOS=windows go vet
       - name: Vet on darwin
-        run: GOOS=darwin go vet
+        run: cd ./src/github.com/${{ github.repository }} ; GOOS=darwin go vet
       - name: Vet on linux
-        run: GOOS=linux go vet
+        run: cd ./src/github.com/${{ github.repository }} ; GOOS=linux go vet
       - name: Run tests
-        run: go test ./...
+        run: cd ./src/github.com/${{ github.repository }} ; go test ./...
