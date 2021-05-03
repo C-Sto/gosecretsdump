@@ -8,10 +8,14 @@ import (
 	"github.com/C-Sto/gosecretsdump/cmd"
 )
 
-const version = "0.3.0"
+var version string
+
+//const version = "0.3.0"
 
 func main() {
-
+	if version == "" {
+		version = "DEV"
+	}
 	//defer profile.Start(profile.ProfilePath("./")).Stop()
 	//defer profile.Start(profile.MemProfile, profile.ProfilePath("./")).Stop()
 	//defer profile.Start(profile.BlockProfile, profile.ProfilePath("./")).Stop()

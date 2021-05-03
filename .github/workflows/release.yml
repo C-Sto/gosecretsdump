@@ -11,24 +11,23 @@ jobs:
     name: Upload Release Asset
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-go@v1
-      - name: Set GOPATH
-        # temporary fix
-        # see https://github.com/actions/setup-go/issues/14
-        run: |
-          echo "##[set-env name=RELEASE_VERSION;]$(echo ${GITHUB_REF:10})"
-          echo "##[set-env name=GOPATH;]$(dirname $GITHUB_WORKSPACE)"
-          echo "##[add-path]$(dirname $GITHUB_WORKSPACE)/bin"
-        shell: bash
-      - name: Checkout code
-        uses: actions/checkout@v1
+      - name: Set up Go
+        uses: actions/setup-go@v2
         with:
-          path: ./src/github.com/${{ github.repository }}
+          go-version: 1.15
+  
+      - uses: actions/checkout@v2
+
+      - name: Set version tag
+        run: |
+          echo "RELEASE_VERSION=$(echo ${GITHUB_REF:10})" >> $GITHUB_ENV
+
       - name: Build # This would actually build your project, using zip for an example artifact
         run: |
-          GOOS=windows go build -ldflags "-s -w" -o "gosecretsdump_win_${RELEASE_VERSION}.exe"
-          GOOS=darwin go build -ldflags "-s -w" -o "gosecretsdump_mac_${RELEASE_VERSION}"
-          GOOS=linux go build -ldflags "-s -w" -o "gosecretsdump_linux_${RELEASE_VERSION}"
+          GOOS=windows go build -ldflags "-s -w -X main.version=${RELEASE_VERSION}" -o "gosecretsdump_win_${RELEASE_VERSION}.exe"
+          GOOS=darwin go build -ldflags "-s -w -X main.version=${RELEASE_VERSION}" -o "gosecretsdump_mac_${RELEASE_VERSION}"
+          GOOS=linux go build -ldflags "-s -w -X main.version=${RELEASE_VERSION}" -o "gosecretsdump_linux_${RELEASE_VERSION}"
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1.0.0
