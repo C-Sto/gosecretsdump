@@ -24,13 +24,13 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	//lm hash
 	if v, err := record.StrVal(ndBCSPwd); err != nil && len(v) > 0 {
 		//if record.Column[ndBCSPwd"]].StrVal != "" {
-		tmpLM := []byte{}
+		var tmpLM []byte
 		b, _ := record.GetBytVal(ndBCSPwd)
 		encryptedLM, err := NewCryptedHash(b)
 		if err != nil {
 			return dh, err
 		}
-		if bytes.Compare(encryptedLM.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
+		if bytes.Equal(encryptedLM.Header[:4], []byte("\x13\x00\x00\x00")) {
 			encryptedLMW := NewCryptedHashW16(b)
 			pekIndex := encryptedLMW.Header
 			tmpLM, err = DecryptAES(d.pek[pekIndex[4]], encryptedLMW.EncryptedHash[:16], encryptedLMW.KeyMaterial[:])
@@ -54,12 +54,12 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 
 	//nt hash
 	if v, _ := record.GetBytVal(nunicodePwd); len(v) > 0 { //  record.Column[nunicodePwd"]].BytVal; len(v) > 0 {
-		tmpNT := []byte{}
+		var tmpNT []byte
 		encryptedNT, err := NewCryptedHash(v)
 		if err != nil {
 			return dh, err
 		}
-		if bytes.Compare(encryptedNT.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
+		if bytes.Equal(encryptedNT.Header[:4], []byte("\x13\x00\x00\x00")) {
 			encryptedNTW := NewCryptedHashW16(v)
 			pekIndex := encryptedNTW.Header
 			tmpNT, err = DecryptAES(d.pek[pekIndex[4]], encryptedNTW.EncryptedHash[:16], encryptedNTW.KeyMaterial[:])
@@ -82,23 +82,23 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	}
 
 	//username
-	if v, err := record.StrVal(nuserPrincipalName); err != nil && v != "" && strings.Contains(v, "@") { //record.Column[nuserPrincipalName"]].StrVal; v != "" {
+	if v, err := record.StrVal(nuserPrincipalName); err == nil && v != "" && strings.Contains(v, "@") { //record.Column[nuserPrincipalName"]].StrVal; v != "" {
 		rec := v
 		domain := rec[strings.LastIndex(rec, "@")+1:]
 		dh.Username = fmt.Sprintf("%s\\%s", domain, v[:strings.LastIndex(rec, "@")])
 	} else {
 		v, _ := record.StrVal(nsAMAccountName)
-		dh.Username = fmt.Sprintf("%s", v)
+		dh.Username = v
 	}
 
 	//Password history LM
 	if !d.noLMHash {
-		if v, _ := record.GetBytVal(nlmPwdHistory); v != nil && len(v) > 0 { //&& len(v) > 0 {
+		if v, _ := record.GetBytVal(nlmPwdHistory); len(v) > 0 { //&& len(v) > 0 {
 			ch, err := NewCryptedHash(v)
 			if err != nil {
 				return dh, err
 			}
-			tmphst := []byte{}
+			var tmphst []byte
 			tmphst, err = d.removeRC4(ch)
 			if err != nil {
 				return dh, err
@@ -116,13 +116,13 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	}
 
 	//password history NT
-	if v, _ := record.GetBytVal(nntPwdHistory); v != nil && len(v) > 0 { //&& len(v) > 0 {
+	if v, _ := record.GetBytVal(nntPwdHistory); len(v) > 0 { //&& len(v) > 0 {
 		ch, err := NewCryptedHash(v)
 		if err != nil {
 			return dh, err
 		}
-		tmphst := []byte{}
-		if bytes.Compare(ch.Header[:4], []byte("\x13\x00\x00\x00")) == 0 {
+		var tmphst []byte
+		if bytes.Equal(ch.Header[:4], []byte("\x13\x00\x00\x00")) {
 			encryptedNTW := NewCryptedHashW16History(v)
 			pekIndex := encryptedNTW.Header
 			tmphst, err = DecryptAES(d.pek[pekIndex[4]], encryptedNTW.EncryptedHash[:], encryptedNTW.KeyMaterial[:])
@@ -185,7 +185,7 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 		//ct := crypted_hash{}.Init(val.BytVal)
 
 		//check for windows 2016 tp4
-		if bytes.Compare(ct.Header[:4], []byte{0x13, 0, 0, 0}) == 0 {
+		if bytes.Equal(ct.Header[:4], []byte{0x13, 0, 0, 0}) {
 			//fmt.Println("TODO: WINDOWS 2016 SUPP DATA FOR PLAINTEXT")
 			pekIndex := binary.LittleEndian.Uint16(ct.Header[4:6])
 			plainBytes, err = DecryptAES(d.pek[pekIndex],
@@ -201,7 +201,7 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 			}
 		}
 		if len(plainBytes) < 100 {
-			return r, fmt.Errorf("Bad length for user properties: expecting >100 got %d ", len(plainBytes))
+			return r, fmt.Errorf("bad length for user properties: expecting >100 got %d ", len(plainBytes))
 		}
 		props := NewSAMRUserProperties(plainBytes)
 
