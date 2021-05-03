@@ -40,7 +40,7 @@ func TestGetHashes(t *testing.T) {
 		}
 	}
 
-	dr, err := ditreader.New("./2016/system", "./2016/ntds.dit")
+	dr, err := ditreader.New("./ntds_reference/2016/system", "./ntds_reference/2016/ntds.dit")
 	if err != nil {
 		t.Fatal(err)
 	}
