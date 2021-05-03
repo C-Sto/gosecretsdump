@@ -10,23 +10,23 @@ type esent_page struct {
 	data     []byte
 	record   esent_page_header
 	cached   bool
-	reads    uint64
+	//reads    uint64
 }
 
-func (p esent_page) getData(start uint16, size int) []byte {
-	//so that I can brain the pythonic indexing stuff
-	//-1 in size indicates 'to the end'
-	//negative start means 'len(data)+start'
-	//fmt.Println(-4 * int(p.record.FirstAvailablePageTag))
-	s := len(p.data) - int(start*4)
+// func (p esent_page) getData(start uint16, size int) []byte {
+// 	//so that I can brain the pythonic indexing stuff
+// 	//-1 in size indicates 'to the end'
+// 	//negative start means 'len(data)+start'
+// 	//fmt.Println(-4 * int(p.record.FirstAvailablePageTag))
+// 	s := len(p.data) - int(start*4)
 
-	if size == -1 {
-		return p.data[s:] // size = len(p.data) - start
-	}
-	//o := make([]byte, size)
-	//copy(o, p.data[start:start+size])
-	return p.data[s : int(start)+size]
-}
+// 	if size == -1 {
+// 		return p.data[s:] // size = len(p.data) - start
+// 	}
+// 	//o := make([]byte, size)
+// 	//copy(o, p.data[start:start+size])
+// 	return p.data[s : int(start)+size]
+// }
 
 func (p *esent_page) getHeader() error {
 	//decide on record type (ugh)
@@ -82,7 +82,7 @@ func (p *esent_page) getHeader() error {
 	//check for extended
 	if p.dbHeader.PageSize > 8192 {
 		p.record.Len = 0
-		return fmt.Errorf("Not implemented: windows 7 extended")
+		return fmt.Errorf("not implemented: windows 7 extended")
 		//do win7 extended
 	}
 	return nil
@@ -90,7 +90,7 @@ func (p *esent_page) getHeader() error {
 
 func (p *esent_page) getTag(i int) (pageFlags uint16, tagData []byte, err error) {
 	if int(p.record.FirstAvailablePageTag) < i {
-		return 0, nil, fmt.Errorf("trying to grab tag??? 0x%s" + string(i))
+		return 0, nil, fmt.Errorf("trying to grab tag??? 0x%x", i)
 	}
 	//len(self.record) calls __len()__ on a Structure object, which just returns len(self.data).
 	//I manually (print/echo debugging ftw) looked at the structures to work it out,
