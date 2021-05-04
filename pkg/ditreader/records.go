@@ -22,10 +22,9 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	dh.Rid = sid.Rid()
 
 	//lm hash
-	if v, err := record.StrVal(ndBCSPwd); err != nil && len(v) > 0 {
+	if b, err := record.GetBytVal(ndBCSPwd); err && len(b) > 0 {
 		//if record.Column[ndBCSPwd"]].StrVal != "" {
 		var tmpLM []byte
-		b, _ := record.GetBytVal(ndBCSPwd)
 		encryptedLM, err := NewCryptedHash(b)
 		if err != nil {
 			return dh, err
