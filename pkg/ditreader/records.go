@@ -22,10 +22,9 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 	dh.Rid = sid.Rid()
 
 	//lm hash
-	if v, err := record.StrVal(ndBCSPwd); err != nil && len(v) > 0 {
+	if b, err := record.GetBytVal(ndBCSPwd); err && len(b) > 0 {
 		//if record.Column[ndBCSPwd"]].StrVal != "" {
 		var tmpLM []byte
-		b, _ := record.GetBytVal(ndBCSPwd)
 		encryptedLM, err := NewCryptedHash(b)
 		if err != nil {
 			return dh, err
@@ -81,14 +80,18 @@ func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error)
 		dh.NTHash = EmptyNT //, _ = hex.DecodeString("31D6CFE0D16AE931B73C59D7E0C089C0")
 	}
 
+	// account name
+	account_name, _ := record.StrVal(nsAMAccountName)
+
 	//username
-	if v, err := record.StrVal(nuserPrincipalName); err == nil && v != "" && strings.Contains(v, "@") { //record.Column[nuserPrincipalName"]].StrVal; v != "" {
-		rec := v
-		domain := rec[strings.LastIndex(rec, "@")+1:]
-		dh.Username = fmt.Sprintf("%s\\%s", domain, v[:strings.LastIndex(rec, "@")])
+	if v, err := record.StrVal(nuserPrincipalName); err == nil && v != "" {
+		domain := v
+		if pos := strings.LastIndex(domain, "@"); pos != -1 {
+			domain = domain[pos+1:]
+		}
+		dh.Username = fmt.Sprintf("%s\\%s", domain, account_name)
 	} else {
-		v, _ := record.StrVal(nsAMAccountName)
-		dh.Username = v
+		dh.Username = account_name
 	}
 
 	//Password history LM

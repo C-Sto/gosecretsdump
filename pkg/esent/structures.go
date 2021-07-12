@@ -443,7 +443,7 @@ func (v esent_recordVal) String() (string, error) {
 		return string(b), err
 		//western... idk yet
 	}
-	return "", fmt.Errorf("Unknown codepage")
+	return "", fmt.Errorf("Unknown codepage=%v", v.codePage)
 }
 
 func (e *Esent_record) GetRecord(column string) *esent_recordVal {
