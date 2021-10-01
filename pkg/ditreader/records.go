@@ -7,179 +7,234 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/C-Sto/gosecretsdump/pkg/esent"
+	"github.com/Velocidex/ordereddict"
 	"golang.org/x/text/encoding/unicode"
 )
 
-func (d *DitReader) DecryptRecord(record esent.Esent_record) (DumpedHash, error) {
-	dh := DumpedHash{}
-	v, _ := record.GetBytVal(nobjectSid)
-	sid, err := NewSAMRRPCSID(v) //record.Column[z].BytVal)
-	if err != nil {
-		return dh, err
-	}
-	//dh.Rid = sid.FormatCanonical()[strings.LastIndex(sid.FormatCanonical(), "-")+1:]
-	dh.Rid = sid.Rid()
+type InterestingObject struct {
+	Sid SAMRRPCSID
+	Rid uint32
 
-	//lm hash
-	if b, err := record.GetBytVal(ndBCSPwd); err && len(b) > 0 {
-		//if record.Column[ndBCSPwd"]].StrVal != "" {
-		var tmpLM []byte
-		encryptedLM, err := NewCryptedHash(b)
-		if err != nil {
-			return dh, err
-		}
-		if bytes.Equal(encryptedLM.Header[:4], []byte("\x13\x00\x00\x00")) {
-			encryptedLMW := NewCryptedHashW16(b)
-			pekIndex := encryptedLMW.Header
-			tmpLM, err = DecryptAES(d.pek[pekIndex[4]], encryptedLMW.EncryptedHash[:16], encryptedLMW.KeyMaterial[:])
-			if err != nil {
-				return dh, err
-			}
-		} else {
-			tmpLM, err = d.removeRC4(encryptedLM)
-			if err != nil {
-				return dh, err
-			}
-		}
-		dh.LMHash, err = RemoveDES(tmpLM, dh.Rid)
-		if err != nil {
-			return dh, err
-		}
-	} else {
-		//hard coded empty lm hash
-		dh.LMHash = EmptyLM //, _ = hex.DecodeString("aad3b435b51404eeaad3b435b51404ee")
+	LMCrypted        []byte
+	LMHistoryCrypted []byte
+	NTCrypted        []byte
+	NTHistoryCrypted []byte
+	SuppCrypt        []byte
+
+	SAMName string
+	UPN     string
+
+	UAC uacFlags
+}
+
+func GetObject(row *ordereddict.Dict) (ret InterestingObject, err error) {
+	ss, ok := row.Get(nobjectSid)
+	if !ok {
+		return
+	}
+	v, _ := hex.DecodeString((ss).(string))
+
+	ret.Sid, err = NewSAMRRPCSID(v)
+	if !ok {
+		return
+	}
+	ret.Rid = ret.Sid.Rid()
+
+	//LM Hash
+	ss, ok = row.Get(ndBCSPwd)
+	if ok {
+		ret.LMCrypted, _ = hex.DecodeString((ss).(string))
 	}
 
-	//nt hash
-	if v, _ := record.GetBytVal(nunicodePwd); len(v) > 0 { //  record.Column[nunicodePwd"]].BytVal; len(v) > 0 {
-		var tmpNT []byte
-		encryptedNT, err := NewCryptedHash(v)
-		if err != nil {
-			return dh, err
-		}
-		if bytes.Equal(encryptedNT.Header[:4], []byte("\x13\x00\x00\x00")) {
-			encryptedNTW := NewCryptedHashW16(v)
-			pekIndex := encryptedNTW.Header
-			tmpNT, err = DecryptAES(d.pek[pekIndex[4]], encryptedNTW.EncryptedHash[:16], encryptedNTW.KeyMaterial[:])
-			if err != nil {
-				return dh, err
-			}
-		} else {
-			tmpNT, err = d.removeRC4(encryptedNT)
-			if err != nil {
-				return dh, err
-			}
-		}
-		dh.NTHash, err = RemoveDES(tmpNT, dh.Rid)
-		if err != nil {
-			return dh, err
-		}
-	} else {
-		//hard coded empty NTLM hash
-		dh.NTHash = EmptyNT //, _ = hex.DecodeString("31D6CFE0D16AE931B73C59D7E0C089C0")
+	//NT Hash
+	ss, ok = row.Get(nunicodePwd)
+	if ok {
+		ret.NTCrypted, _ = hex.DecodeString((ss).(string))
 	}
 
-	// account name
-	account_name, _ := record.StrVal(nsAMAccountName)
+	//Account name
+	ss, ok = row.Get(nsAMAccountName)
+	if ok {
+		ret.SAMName = (ss).(string)
+	}
 
 	//username
-	if v, err := record.StrVal(nuserPrincipalName); err == nil && v != "" {
-		domain := v
-		if pos := strings.LastIndex(domain, "@"); pos != -1 {
-			domain = domain[pos+1:]
-		}
-		dh.Username = fmt.Sprintf("%s\\%s", domain, account_name)
-	} else {
-		dh.Username = account_name
+	ss, ok = row.Get(nuserPrincipalName)
+	if ok {
+		ret.UPN = (ss).(string)
 	}
 
 	//Password history LM
-	if !d.noLMHash {
-		if v, _ := record.GetBytVal(nlmPwdHistory); len(v) > 0 { //&& len(v) > 0 {
-			ch, err := NewCryptedHash(v)
-			if err != nil {
-				return dh, err
-			}
-			var tmphst []byte
-			tmphst, err = d.removeRC4(ch)
-			if err != nil {
-				return dh, err
-			}
-
-			for i := 16; i < len(tmphst); i += 16 {
-				hst1 := tmphst[i : i+16]
-				hst2, err := RemoveDES(hst1, dh.Rid)
-				dh.History.LmHist = append(dh.History.LmHist, hst2)
-				if err != nil {
-					return dh, err
-				}
-			}
-		}
+	ss, ok = row.Get(nlmPwdHistory)
+	if ok {
+		ret.LMHistoryCrypted, _ = hex.DecodeString((ss).(string))
 	}
 
 	//password history NT
-	if v, _ := record.GetBytVal(nntPwdHistory); len(v) > 0 { //&& len(v) > 0 {
-		ch, err := NewCryptedHash(v)
-		if err != nil {
-			return dh, err
-		}
-		var tmphst []byte
-		if bytes.Equal(ch.Header[:4], []byte("\x13\x00\x00\x00")) {
-			encryptedNTW := NewCryptedHashW16History(v)
-			pekIndex := encryptedNTW.Header
-			tmphst, err = DecryptAES(d.pek[pekIndex[4]], encryptedNTW.EncryptedHash[:], encryptedNTW.KeyMaterial[:])
-			if err != nil {
-				return dh, err
-			}
-		} else {
-			tmphst, err = d.removeRC4(ch)
-			if err != nil {
-				return dh, err
-			}
-		}
-		for i := 16; i < len(tmphst); i += 16 {
-			hst1 := tmphst[i : i+16]
-			hst2, err := RemoveDES(hst1, dh.Rid)
-			if err != nil {
-				return dh, err
-			}
-			dh.History.NTHist = append(dh.History.NTHist, hst2)
-		}
-
+	ss, ok = row.Get(nntPwdHistory)
+	if ok {
+		ret.NTHistoryCrypted, _ = hex.DecodeString((ss).(string))
 	}
+
 	//check if account is enabled
-	if v, _ := record.GetLongVal(nuserAccountControl); v != 0 { // record.Column[nuserAccountControl"]].Long; v != 0 {
-		dh.UAC = decodeUAC(int(v))
+	ss, ok = row.Get(nuserAccountControl)
+	if ok {
+		ret.UAC = decodeUAC((ss).(int))
 	}
 
-	//check if cleartext exists
-	if val, _ := record.GetBytVal(nsupplementalCredentials); len(val) > 24 {
-		//if val := record.Column[nsupplementalCredentials"]]; len(val.BytVal) > 24 {
-		var err error
-		dh.Supp, err = d.decryptSupp(record)
-		if err != nil {
-			fmt.Println("Error: ", err)
-		}
+	//supp creds
+	ss, ok = row.Get(nsupplementalCredentials)
+	if ok {
+		ret.SuppCrypt, _ = hex.DecodeString((ss).(string))
 	}
 
-	return dh, nil
+	return
 }
 
-func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
+func LMDecrypt(b []byte, pek [][]byte, rid uint32) []byte {
+	var tmpLM []byte
+	encryptedLM, err := NewCryptedHash(b)
+	if err != nil {
+		return nil
+	}
+	if bytes.Equal(encryptedLM.Header[:4], []byte("\x13\x00\x00\x00")) {
+		encryptedLMW := NewCryptedHashW16(b)
+		pekIndex := encryptedLMW.Header
+		tmpLM, err = DecryptAES(pek[pekIndex[4]], encryptedLMW.EncryptedHash[:16], encryptedLMW.KeyMaterial[:])
+		if err != nil {
+			return nil
+		}
+	} else {
+		tmpLM, err = removeRC4(encryptedLM, pek)
+		if err != nil {
+			return nil
+		}
+	}
+	LMHash, err := RemoveDES(tmpLM, rid)
+	if err != nil {
+		return nil
+	}
+	return LMHash
+}
+
+func (d InterestingObject) Decrypt(pek [][]byte) DumpedHash {
+	dh := DumpedHash{}
+	dh.Rid = d.Rid
+	dh.Username = d.SAMName
+	dh.UAC = d.UAC
+	//var err error
+
+	if len(d.LMCrypted) > 0 {
+		dh.LMHash = LMDecrypt(d.LMCrypted, pek, d.Rid)
+	}
+
+	if len(d.NTCrypted) > 0 {
+		dh.NTHash, _ = NTDecrypt(d.NTCrypted, pek, d.Rid)
+	}
+
+	if len(d.LMHistoryCrypted) > 0 {
+		dh.History.LmHist, _ = LMHistoryDecrypt(d.LMHistoryCrypted, pek, d.Rid)
+	}
+
+	if len(d.NTHistoryCrypted) > 0 {
+		dh.History.NTHist, _ = NTHistoryDecrypt(d.NTHistoryCrypted, pek, d.Rid)
+	}
+
+	if len(d.SuppCrypt) > 0 {
+		dh.Supp, _ = SupplementalDecrypt(d.SuppCrypt, dh.Username, pek)
+	}
+
+	return dh
+}
+
+func LMHistoryDecrypt(v []byte, pek [][]byte, rid uint32) ([][]byte, error) {
+	ret := [][]byte{}
+	ch, err := NewCryptedHash(v)
+	if err != nil {
+		return nil, err
+	}
+	var tmphst []byte
+	tmphst, err = removeRC4(ch, pek)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := 16; i < len(tmphst); i += 16 {
+		hst1 := tmphst[i : i+16]
+		hst2, err := RemoveDES(hst1, rid)
+		ret = append(ret, hst2)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return ret, nil
+}
+
+func NTHistoryDecrypt(v []byte, pek [][]byte, rid uint32) ([][]byte, error) {
+	ret := [][]byte{}
+	ch, err := NewCryptedHash(v)
+	if err != nil {
+		return nil, err
+	}
+	var tmphst []byte
+	if bytes.Equal(ch.Header[:4], []byte("\x13\x00\x00\x00")) {
+		encryptedNTW := NewCryptedHashW16History(v)
+		pekIndex := encryptedNTW.Header
+		tmphst, err = DecryptAES(pek[pekIndex[4]], encryptedNTW.EncryptedHash[:], encryptedNTW.KeyMaterial[:])
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		tmphst, err = removeRC4(ch, pek)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := 16; i < len(tmphst); i += 16 {
+		hst1 := tmphst[i : i+16]
+		hst2, err := RemoveDES(hst1, rid)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, hst2)
+	}
+	return ret, nil
+}
+
+func NTDecrypt(v []byte, pek [][]byte, rid uint32) ([]byte, error) {
+	var tmpNT []byte
+	encryptedNT, err := NewCryptedHash(v)
+	if err != nil {
+		return nil, err
+	}
+	if bytes.Equal(encryptedNT.Header[:4], []byte("\x13\x00\x00\x00")) {
+		encryptedNTW := NewCryptedHashW16(v)
+		pekIndex := encryptedNTW.Header
+		tmpNT, err = DecryptAES(pek[pekIndex[4]], encryptedNTW.EncryptedHash[:16], encryptedNTW.KeyMaterial[:])
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		tmpNT, err = removeRC4(encryptedNT, pek)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return RemoveDES(tmpNT, rid)
+}
+
+func SupplementalDecrypt(bval []byte, username string, pek [][]byte) (SuppInfo, error) {
 	r := SuppInfo{}
 
-	bval, _ := record.GetBytVal(nsupplementalCredentials) // record.Column[nsupplementalCredentials"]]
-	if len(bval) > 24 {                                   //is the value above the minimum for plaintex passwords?
-		username, _ := record.StrVal(nsAMAccountName)
+	if len(bval) > 24 { //is the value above the minimum for plaintex passwords?
 		var plainBytes []byte
 		//check if the record is something something? has a UPN?
-		if v, _ := record.StrVal(nuserPrincipalName); v != "" { //record.Column[nuserPrincipalName"]].StrVal != "" {
-			domain := v
-			parts := strings.Split(domain, "@")
-			domain = parts[len(parts)-1]
-			username = fmt.Sprintf("%s\\%s", domain, username)
-		}
+		// if v, _ := record.StrVal(nuserPrincipalName); v != "" { //record.Column[nuserPrincipalName"]].StrVal != "" {
+		// 	domain := v
+		// 	parts := strings.Split(domain, "@")
+		// 	domain = parts[len(parts)-1]
+		// 	username = fmt.Sprintf("%s\\%s", domain, username)
+		// }
 		//fmt.Println(val.BytVal)
 		ct, err := NewCryptedHash(bval)
 		if err != nil {
@@ -191,14 +246,14 @@ func (d DitReader) decryptSupp(record esent.Esent_record) (SuppInfo, error) {
 		if bytes.Equal(ct.Header[:4], []byte{0x13, 0, 0, 0}) {
 			//fmt.Println("TODO: WINDOWS 2016 SUPP DATA FOR PLAINTEXT")
 			pekIndex := binary.LittleEndian.Uint16(ct.Header[4:6])
-			plainBytes, err = DecryptAES(d.pek[pekIndex],
+			plainBytes, err = DecryptAES(pek[pekIndex],
 				ct.EncryptedHash[4:],
 				ct.KeyMaterial[:])
 			if err != nil {
 				return r, err
 			}
 		} else {
-			plainBytes, err = d.removeRC4(ct)
+			plainBytes, err = removeRC4(ct, pek)
 			if err != nil {
 				return r, err
 			}

@@ -66,8 +66,8 @@ func transformKey(inKey []byte) []byte {
 	return outKey
 }
 
-func (d DitReader) removeRC4(c CryptedHash) ([]byte, error) {
-	tmpKey := md5.Sum(append(d.pek[int(c.Header[4])], c.KeyMaterial[:]...))
+func removeRC4(c CryptedHash, pek [][]byte) ([]byte, error) {
+	tmpKey := md5.Sum(append(pek[int(c.Header[4])], c.KeyMaterial[:]...))
 	lol, err := rc4.NewCipher(tmpKey[:])
 	if err != nil {
 		return nil, err
