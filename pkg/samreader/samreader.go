@@ -17,7 +17,7 @@ import (
 	"github.com/C-Sto/gosecretsdump/pkg/ditreader"
 )
 
-//New Creates a new dit dumper
+// New Creates a new dit dumper
 func New(system, sam string) (SamReader, error) {
 	r := SamReader{
 		noLMHash:           true,
@@ -75,7 +75,7 @@ func (d *SamReader) dump() {
 	d.Dump()
 }
 
-//GetOutChan returns a reference to the objects output channel for read only operations
+// GetOutChan returns a reference to the objects output channel for read only operations
 func (d SamReader) GetOutChan() <-chan ditreader.DumpedHash {
 	return d.userData
 }
@@ -295,7 +295,16 @@ func NewSamHashAES(b []byte) SAMHashAES {
 	return r
 }
 
+func NewSamHash(b []byte) SAMHash {
+	br := bytes.NewReader(b)
+	r := SAMHash{}
+	binary.Read(br, binary.LittleEndian, &r)
+	return r
+}
+
 func (d SamReader) Dump() error {
+	defer close(d.userData)
+
 	boot := d.SysKey()
 	rids, _ := d.GetRids()
 	for _, rid := range rids {
@@ -304,41 +313,68 @@ func (d SamReader) Dump() error {
 			return err
 		}
 		data := v.NTLMHash.GetData(v.Data)
-		if data[0] == 2 {
-			//new style (AES)
-			a := NewSamHashAES(data)
-			if len(a.Hash) > 0 {
-				raw, err := ditreader.DecryptAES(boot, a.Hash, a.Salt[:])
-				if err != nil {
-					return err
-				}
-				data = raw[:16]
-			} else {
-				data = []byte{}
+		var newStyle bool
+		var encLMHash, encNTHash []byte
+
+		if len(data) > 2 && data[2] != 0x01 {
+			newStyle = true
+			// New Style hashes
+			if v.LMHash.Length == 24 {
+				encLMHash = v.LMHash.GetData(v.Data)
 			}
+			encNTHash = data
 		} else {
+			newStyle = false
+			// Old Style hashes
 			if v.NTLMHash.Length == 20 {
-				sh := SAMHash{}
-				binary.Read(bytes.NewReader(data), binary.LittleEndian, &sh)
-				data = sh.Hash[:]
+				encNTHash = data
+			}
+			if v.LMHash.Length == 20 {
+				encLMHash = v.LMHash.GetData(v.Data)
+			}
+		}
+
+		ntHash := ditreader.EmptyNT
+		lmHash := ditreader.EmptyLM
+		if len(encNTHash) > 0 {
+			if newStyle {
+				samHashAes := NewSamHashAES(encNTHash)
+				if len(samHashAes.Hash) > 0 {
+					ntHash, err = ditreader.DecryptHashAES(rid, samHashAes.Hash, samHashAes.Salt[:], boot)
+				}
 			} else {
-				data = []byte{}
+				samHash := NewSamHash(encNTHash)
+				ntHash, err = ditreader.DecryptHash(rid, samHash.Hash[:], []byte(ditreader.NtPassword), boot)
 			}
-		}
-		ntlmplain := ditreader.EmptyNT
-		if len(data) > 0 {
-			ntlmplain, err = ditreader.RemoveDES(data, rid)
+
 			if err != nil {
-				return err
+				ntHash = ditreader.EmptyNT
 			}
 		}
+
+		if len(encLMHash) > 0 {
+			if newStyle {
+				samHashAes := NewSamHashAES(encLMHash)
+				if len(samHashAes.Hash) > 0 {
+					lmHash, err = ditreader.DecryptHashAES(rid, samHashAes.Hash, samHashAes.Salt[:], boot)
+				}
+			} else {
+				samHash := NewSamHash(encLMHash)
+				lmHash, err = ditreader.DecryptHash(rid, samHash.Hash[:], []byte(ditreader.LMPassword), boot)
+			}
+
+			if err != nil {
+				lmHash = ditreader.EmptyLM
+			}
+		}
+
 		d.userData <- ditreader.DumpedHash{
 			Username: v.UsernameString(),
-			LMHash:   ditreader.EmptyLM,
-			NTHash:   ntlmplain,
+			LMHash:   lmHash,
+			NTHash:   ntHash,
 			Rid:      rid,
 		}
 	}
-	close(d.userData)
+
 	return nil
 }

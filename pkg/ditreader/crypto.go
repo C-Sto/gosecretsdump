@@ -77,7 +77,7 @@ func (d DitReader) removeRC4(c CryptedHash) ([]byte, error) {
 	return plain, nil
 }
 
-//NewCryptedHash creates a CryptedHash object containing key material and encrypted content.
+// NewCryptedHash creates a CryptedHash object containing key material and encrypted content.
 func NewCryptedHash(inData []byte) (CryptedHash, error) {
 	if len(inData) < 16 {
 		return CryptedHash{}, fmt.Errorf("Invalid crypted hash length. Expected x>16, got x=%d", len(inData))
@@ -155,4 +155,62 @@ func NewCryptedHashW16History(data []byte) CryptedHashW16History {
 	copy(r.EncryptedHash[:], data[:])
 
 	return r
+}
+
+func DecryptHashAES(rid uint32, hash, salt, hashedBootKey []byte) ([]byte, error) {
+	key1, key2 := DeriveKey(rid)
+
+	crypt1, err := des.NewCipher(key1)
+	if err != nil {
+		return []byte{}, err
+	}
+	crypt2, err := des.NewCipher(key2)
+	if err != nil {
+		return []byte{}, err
+	}
+	var encryptedKey []byte
+
+	encryptedKey, err = DecryptAES(hashedBootKey[:16], hash, salt)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	decryptedHash := make([]byte, 16)
+	crypt1.Decrypt(decryptedHash[:8], encryptedKey[:8])
+	crypt2.Decrypt(decryptedHash[8:], encryptedKey[8:])
+
+	return decryptedHash[:16], nil
+}
+
+func DecryptHash(rid uint32, hash, constant, hashedBootKey []byte) ([]byte, error) {
+
+	key1, key2 := DeriveKey(rid)
+
+	crypt1, err := des.NewCipher(key1)
+	if err != nil {
+		return []byte{}, err
+	}
+	crypt2, err := des.NewCipher(key2)
+	if err != nil {
+		return []byte{}, err
+	}
+	var encryptedKey []byte
+
+	ridByte := make([]byte, 4)
+	binary.LittleEndian.PutUint32(ridByte, rid)
+	rc4Key := md5.Sum(append(hashedBootKey[:16], append(ridByte, constant...)...))
+	rc4Cipher, err := rc4.NewCipher(rc4Key[:])
+	if err != nil {
+		return []byte{}, err
+	}
+
+	encryptedKey = make([]byte, len(hash))
+	rc4Cipher.XORKeyStream(encryptedKey, hash)
+
+	decryptedHash := make([]byte, 16)
+
+	crypt1.Decrypt(decryptedHash[:8], encryptedKey[:8])
+	crypt2.Decrypt(decryptedHash[8:], encryptedKey[8:])
+
+	return decryptedHash[:16], nil
 }
