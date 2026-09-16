@@ -116,7 +116,7 @@ func (e *Esedb) mountDb(filename string) (err error) {
 	}
 	// this was a gross way of working out how many pages the file has...
 	//this is where everything actually gets parsed out
-	e.parseCatalog(CATALOG_PAGE_NUMBER) //4  ?
+	err = e.parseCatalog(CATALOG_PAGE_NUMBER) //4  ?
 
 	return
 }
@@ -128,7 +128,9 @@ func (e *Esedb) parseCatalog(pagenum uint32) error {
 	page := e.getPage(pagenum)
 
 	//parse the page
-	e.parsePage(page)
+	if err := e.parsePage(page); err != nil {
+		return err
+	}
 
 	//Iterate over each tag in the branch
 	for i := 1; i < int(page.record.FirstAvailablePageTag); i++ {
@@ -142,7 +144,9 @@ func (e *Esedb) parseCatalog(pagenum uint32) error {
 			//create the branch entry from the flags and data retreived
 			branchEntry := esent_branch_entry{}.Init(flags, data)
 			//walk along the branch, and parse any referenced pages
-			e.parseCatalog(branchEntry.ChildPageNumber)
+			if err := e.parseCatalog(branchEntry.ChildPageNumber); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -161,7 +165,10 @@ func (e *Esedb) parsePage(page *esent_page) error {
 		if err != nil {
 			return err
 		}
-		leafEntry := esent_leaf_entry{}.Init(flags, data)
+		leafEntry, err := (esent_leaf_entry{}).Init(flags, data)
+		if err != nil {
+			return err
+		}
 		e.addLeaf(leafEntry)
 	}
 	return nil
@@ -193,7 +200,10 @@ func (e *Esedb) GetNextRow(c *Cursor) (Esent_record, error) {
 	if err != nil {
 		return Esent_record{}, err
 	}
-	tag := esent_leaf_entry{}.Init(flags, data)
+	tag, err := (esent_leaf_entry{}).Init(flags, data)
+	if err != nil {
+		return Esent_record{}, err
+	}
 	return e.tagToRecord(c, tag.EntryData)
 }
 
