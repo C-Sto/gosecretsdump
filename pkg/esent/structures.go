@@ -182,7 +182,7 @@ type esent_leaf_entry struct {
 	EntryData    []byte // ":"
 }
 
-func (e esent_leaf_entry) Init(flags uint16, inData []byte) esent_leaf_entry {
+func (e esent_leaf_entry) Init(flags uint16, inData []byte) (esent_leaf_entry, error) {
 	r := esent_leaf_entry{}
 	curs := 0
 	//data := make([]byte, len(inData))
@@ -190,21 +190,30 @@ func (e esent_leaf_entry) Init(flags uint16, inData []byte) esent_leaf_entry {
 	//copy(data, inData)
 	//take first 2 bytes of data if common flag is set
 	if flags&TAG_COMMON > 0 {
+		if len(inData) < 2 {
+			return r, fmt.Errorf("leaf entry: common key size requires 2 bytes, got %d", len(inData))
+		}
 		r.CommonPageKeySize = binary.LittleEndian.Uint16(inData[:2])
 		//data = data[2:]
 		curs += 2
 	}
 	//fill the structure with remaining data
 	//first element is the pagekeysize
+	if len(inData)-curs < 2 {
+		return r, fmt.Errorf("leaf entry: local key size requires 2 bytes, got %d", len(inData)-curs)
+	}
 	r.LocalPageKeySize = binary.LittleEndian.Uint16(inData[curs : curs+2])
 	curs += 2
 	//then the pagekey (determined by the pagekeysize)
+	if int(r.LocalPageKeySize) > len(inData)-curs {
+		return r, fmt.Errorf("leaf entry: local key size %d exceeds remaining data length %d", r.LocalPageKeySize, len(inData)-curs)
+	}
 	r.LocalPageKey = inData[curs : curs+int(r.LocalPageKeySize)]
 	curs += int(r.LocalPageKeySize)
 	//data = data[r.LocalPageKeySize:]
 	//then we have the data (this should be the rest of the data??)
 	r.EntryData = inData[curs:]
-	return r
+	return r, nil
 }
 
 type esent_data_definition_header struct {
